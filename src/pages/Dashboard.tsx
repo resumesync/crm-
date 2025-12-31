@@ -1,9 +1,17 @@
+import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight, Clock, Phone, CheckCircle2, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 
 const stats = [
     { name: 'Total Leads', value: '2,847', change: '+12%', icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -19,7 +27,62 @@ const recentLeads = [
     { name: 'Vikram Singh', service: 'Acne Treatment', status: 'New', time: '2 hours ago' },
 ];
 
+const initialFollowups = [
+    { id: '1', leadName: 'Priya Sharma', phone: '+91 98765 43210', time: '10:00 AM', type: 'Call', notes: 'Discuss hair transplant options', status: 'pending' },
+    { id: '2', leadName: 'Rahul Kumar', phone: '+91 87654 32109', time: '11:30 AM', type: 'WhatsApp', notes: 'Send treatment brochure', status: 'pending' },
+    { id: '3', leadName: 'Meera Reddy', phone: '+91 76543 21098', time: '2:00 PM', type: 'Call', notes: 'Follow up on consultation', status: 'completed' },
+    { id: '4', leadName: 'Arun Krishnan', phone: '+91 65432 10987', time: '4:30 PM', type: 'Meeting', notes: 'In-person consultation at clinic', status: 'pending' },
+];
+
 export default function Dashboard() {
+    const [followups, setFollowups] = useState(initialFollowups);
+    const [isAddFollowupOpen, setIsAddFollowupOpen] = useState(false);
+    const [newFollowup, setNewFollowup] = useState({
+        leadName: '',
+        phone: '',
+        date: '',
+        time: '',
+        type: 'Call',
+        notes: ''
+    });
+
+    const markAsCompleted = (id: string) => {
+        setFollowups(prev => prev.map(f =>
+            f.id === id ? { ...f, status: 'completed' } : f
+        ));
+        toast.success('Follow-up marked as completed!');
+    };
+
+    const removeFollowup = (id: string) => {
+        setFollowups(prev => prev.filter(f => f.id !== id));
+        toast.success('Follow-up removed');
+    };
+
+    const addFollowup = () => {
+        if (!newFollowup.leadName || !newFollowup.phone || !newFollowup.time) {
+            toast.error('Please fill in required fields');
+            return;
+        }
+
+        const followup = {
+            id: Date.now().toString(),
+            leadName: newFollowup.leadName,
+            phone: newFollowup.phone,
+            time: newFollowup.time,
+            type: newFollowup.type,
+            notes: newFollowup.notes,
+            status: 'pending'
+        };
+
+        setFollowups(prev => [...prev, followup]);
+        setNewFollowup({ leadName: '', phone: '', date: '', time: '', type: 'Call', notes: '' });
+        setIsAddFollowupOpen(false);
+        toast.success('Follow-up scheduled successfully!');
+    };
+
+    const pendingFollowups = followups.filter(f => f.status === 'pending');
+    const completedFollowups = followups.filter(f => f.status === 'completed');
+
     return (
         <Layout>
             <Header title="Dashboard" subtitle="Welcome back! Here's your overview." />
@@ -100,56 +163,221 @@ export default function Dashboard() {
                     </Link>
                 </div>
 
-                {/* Recent Leads */}
-                <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold">Recent Leads</h3>
-                        <Link to="/leads">
-                            <Button variant="ghost" size="sm">View All</Button>
-                        </Link>
-                    </div>
-                    <div className="space-y-3">
-                        {recentLeads.map((lead, index) => (
-                            <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <span className="text-sm font-medium text-primary">
-                                            {lead.name.split(' ').map(n => n[0]).join('')}
-                                        </span>
+                {/* Two Column Layout for Leads and Follow-ups */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Recent Leads */}
+                    <Card className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Recent Leads</h3>
+                            <Link to="/leads">
+                                <Button variant="ghost" size="sm">View All</Button>
+                            </Link>
+                        </div>
+                        <div className="space-y-3">
+                            {recentLeads.map((lead, index) => (
+                                <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <span className="text-sm font-medium text-primary">
+                                                {lead.name.split(' ').map(n => n[0]).join('')}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">{lead.name}</p>
+                                            <p className="text-sm text-muted-foreground">{lead.service}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-medium">{lead.name}</p>
-                                        <p className="text-sm text-muted-foreground">{lead.service}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${lead.status === 'New' ? 'bg-blue-100 text-blue-700' :
+                                    <div className="text-right">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${lead.status === 'New' ? 'bg-blue-100 text-blue-700' :
                                             lead.status === 'Contacted' ? 'bg-yellow-100 text-yellow-700' :
                                                 'bg-green-100 text-green-700'
-                                        }`}>
-                                        {lead.status}
-                                    </span>
-                                    <p className="text-xs text-muted-foreground mt-1">{lead.time}</p>
+                                            }`}>
+                                            {lead.status}
+                                        </span>
+                                        <p className="text-xs text-muted-foreground mt-1">{lead.time}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
+                            ))}
+                        </div>
+                    </Card>
 
-                {/* Upcoming */}
-                <Card className="p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Calendar className="h-5 w-5 text-muted-foreground" />
-                        <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
-                    </div>
-                    <div className="text-center py-8 text-muted-foreground">
-                        <p>No follow-ups scheduled for today</p>
-                        <Link to="/leads">
-                            <Button variant="outline" className="mt-4">Schedule Follow-up</Button>
-                        </Link>
-                    </div>
-                </Card>
+                    {/* Follow-ups Section */}
+                    <Card className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-primary" />
+                                <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
+                                <Badge variant="secondary" className="ml-2">{pendingFollowups.length} pending</Badge>
+                            </div>
+                            <Button size="sm" onClick={() => setIsAddFollowupOpen(true)}>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add
+                            </Button>
+                        </div>
+
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                            {pendingFollowups.length === 0 && completedFollowups.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                    <p>No follow-ups scheduled for today</p>
+                                    <Button variant="outline" className="mt-4" onClick={() => setIsAddFollowupOpen(true)}>
+                                        Schedule Follow-up
+                                    </Button>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Pending Follow-ups */}
+                                    {pendingFollowups.map((followup) => (
+                                        <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                                            <div className="flex items-start gap-3">
+                                                <div className={`p-2 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
+                                                        followup.type === 'WhatsApp' ? 'bg-green-500/10' :
+                                                            'bg-purple-500/10'
+                                                    }`}>
+                                                    {followup.type === 'Call' ? (
+                                                        <Phone className={`h-4 w-4 text-blue-500`} />
+                                                    ) : followup.type === 'WhatsApp' ? (
+                                                        <MessageCircle className={`h-4 w-4 text-green-500`} />
+                                                    ) : (
+                                                        <Users className={`h-4 w-4 text-purple-500`} />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium">{followup.leadName}</p>
+                                                    <p className="text-sm text-muted-foreground">{followup.phone}</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">{followup.notes}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className="flex items-center gap-1 text-sm">
+                                                    <Clock className="h-3 w-3" />
+                                                    <span className="font-medium">{followup.time}</span>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                        onClick={() => markAsCompleted(followup.id)}
+                                                    >
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        onClick={() => removeFollowup(followup.id)}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Completed Follow-ups */}
+                                    {completedFollowups.length > 0 && (
+                                        <>
+                                            <div className="flex items-center gap-2 pt-2">
+                                                <div className="flex-1 h-px bg-border"></div>
+                                                <span className="text-xs text-muted-foreground">Completed</span>
+                                                <div className="flex-1 h-px bg-border"></div>
+                                            </div>
+                                            {completedFollowups.map((followup) => (
+                                                <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-muted/30 opacity-60">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="p-2 rounded-lg bg-green-500/10">
+                                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium line-through">{followup.leadName}</p>
+                                                            <p className="text-sm text-muted-foreground">{followup.phone}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm text-muted-foreground">{followup.time}</span>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </Card>
+                </div>
             </div>
+
+            {/* Add Follow-up Dialog */}
+            <Dialog open={isAddFollowupOpen} onOpenChange={setIsAddFollowupOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Schedule Follow-up</DialogTitle>
+                        <DialogDescription>
+                            Add a new follow-up reminder for a lead.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="leadName">Lead Name *</Label>
+                            <Input
+                                id="leadName"
+                                placeholder="e.g., Priya Sharma"
+                                value={newFollowup.leadName}
+                                onChange={(e) => setNewFollowup(prev => ({ ...prev, leadName: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">Phone Number *</Label>
+                            <Input
+                                id="phone"
+                                placeholder="+91 98765 43210"
+                                value={newFollowup.phone}
+                                onChange={(e) => setNewFollowup(prev => ({ ...prev, phone: e.target.value }))}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="time">Time *</Label>
+                                <Input
+                                    id="time"
+                                    type="time"
+                                    value={newFollowup.time}
+                                    onChange={(e) => setNewFollowup(prev => ({ ...prev, time: e.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="type">Type</Label>
+                                <Select value={newFollowup.type} onValueChange={(v) => setNewFollowup(prev => ({ ...prev, type: v }))}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Call">📞 Call</SelectItem>
+                                        <SelectItem value="WhatsApp">💬 WhatsApp</SelectItem>
+                                        <SelectItem value="Meeting">👥 Meeting</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="notes">Notes</Label>
+                            <Textarea
+                                id="notes"
+                                placeholder="Add any notes about this follow-up..."
+                                value={newFollowup.notes}
+                                onChange={(e) => setNewFollowup(prev => ({ ...prev, notes: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddFollowupOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={addFollowup}>
+                            Schedule Follow-up
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Layout>
     );
 }

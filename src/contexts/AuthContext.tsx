@@ -1,78 +1,53 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+
+interface User {
+    id: string;
+    email: string;
+    name?: string;
+    role?: 'admin' | 'agent';
+}
 
 interface AuthContextType {
     user: User | null;
-    session: Session | null;
     loading: boolean;
+    isAuthenticated: boolean;
     signUp: (email: string, password: string, metadata: any) => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     signOut: () => Promise<void>;
-    signInWithGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Mock user for demo purposes
+const DEMO_USER: User = {
+    id: '1',
+    email: 'admin@example.com',
+    name: 'Admin User',
+    role: 'admin'
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
-
-        // Listen for auth changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
+    const [user, setUser] = useState<User | null>(DEMO_USER); // Auto-login for demo
+    const [loading, setLoading] = useState(false);
 
     const signUp = async (email: string, password: string, metadata: any) => {
         try {
-            const { data, error } = await supabase.auth.signUp({
+            setLoading(true);
+            // Simulate signup - in production, connect to your auth provider
+            const newUser: User = {
+                id: Date.now().toString(),
                 email,
-                password,
-                options: {
-                    data: metadata,
-                },
+                name: metadata.name || email.split('@')[0],
+                role: 'admin'
+            };
+            setUser(newUser);
+            localStorage.setItem('user', JSON.stringify(newUser));
+
+            toast({
+                title: "Account created!",
+                description: "Welcome to ClientCare CRM.",
             });
-
-            if (error) throw error;
-
-            if (data.user) {
-                // Create organization for new user
-                const { error: orgError } = await supabase
-                    .from('organizations')
-                    .insert({
-                        name: metadata.clinicName,
-                        slug: metadata.clinicName.toLowerCase().replace(/\s+/g, '-'),
-                        subscription_tier: 'free',
-                        subscription_status: 'trial',
-                        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                    })
-                    .select()
-                    .single();
-
-                if (orgError) throw orgError;
-
-                toast({
-                    title: "Account created!",
-                    description: "Please check your email to verify your account.",
-                });
-            }
         } catch (error: any) {
             toast({
                 title: "Sign up failed",
@@ -80,17 +55,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 variant: "destructive",
             });
             throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
     const signIn = async (email: string, password: string) => {
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            setLoading(true);
+            // Simulate login - in production, connect to your auth provider
+            const loggedInUser: User = {
+                id: '1',
                 email,
-                password,
-            });
-
-            if (error) throw error;
+                name: email.split('@')[0],
+                role: 'admin'
+            };
+            setUser(loggedInUser);
+            localStorage.setItem('user', JSON.stringify(loggedInUser));
 
             toast({
                 title: "Welcome back!",
@@ -103,14 +84,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 variant: "destructive",
             });
             throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
     const signOut = async () => {
         try {
-            const { error } = await supabase.auth.signOut();
-            if (error) throw error;
-
+            setUser(null);
+            localStorage.removeItem('user');
             toast({
                 title: "Logged out",
                 description: "You have been successfully logged out.",
@@ -124,33 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signInWithGoogle = async () => {
-        try {
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: `${window.location.origin}/onboarding`,
-                },
-            });
-
-            if (error) throw error;
-        } catch (error: any) {
-            toast({
-                title: "Google sign in failed",
-                description: error.message,
-                variant: "destructive",
-            });
-        }
-    };
-
     const value = {
         user,
-        session,
         loading,
+        isAuthenticated: !!user,
         signUp,
         signIn,
         signOut,
-        signInWithGoogle,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -10,6 +10,7 @@ import Onboarding from "./pages/Onboarding";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import Index from "./pages/Index";
 import Leads from "./pages/Leads";
+import Followups from "./pages/Followups";
 import Messages from "./pages/Messages";
 import Campaigns from "./pages/Campaigns";
 import Reviews from "./pages/Reviews";
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard" element={<Index />} />
           <Route path="/leads" element={<Leads />} />
+          <Route path="/followups" element={<Followups />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/reviews" element={<Reviews />} />
