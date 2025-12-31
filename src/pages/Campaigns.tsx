@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
-import { mockCampaigns } from '@/data/mockData';
+import { useCampaigns, useCreateCampaign, useExecuteCampaign, useDailyLimit } from '@/hooks/useCampaigns';
+import { useGroups } from '@/hooks/useGroups';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,22 +10,27 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Image, Video, Type, Calendar, Send, Users, X, MessageSquare, Clock } from 'lucide-react';
+import { Plus, Image, Video, Type, Calendar, Send, Users, MessageSquare, Clock, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const campaignTypeIcons = {
+const campaignTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   image: Image,
   video: Video,
   text: Type,
+  document: Type,
+  none: Type,
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
   scheduled: 'bg-status-meeting/20 text-status-meeting',
+  in_progress: 'bg-blue-500/20 text-blue-600',
+  completed: 'bg-status-converted/20 text-status-converted',
+  cancelled: 'bg-destructive/20 text-destructive',
   sent: 'bg-status-converted/20 text-status-converted',
   failed: 'bg-destructive/20 text-destructive',
 };
@@ -37,7 +43,16 @@ export default function Campaigns() {
   const [targetGroup, setTargetGroup] = useState('');
   const [scheduleType, setScheduleType] = useState('now');
 
-  const handleCreateCampaign = () => {
+  // Fetch data from API
+  const { data: campaignsData, isLoading, isError, refetch } = useCampaigns();
+  const { data: dailyLimit } = useDailyLimit();
+  const { data: groups } = useGroups();
+  const createCampaign = useCreateCampaign();
+  const executeCampaign = useExecuteCampaign();
+
+  const campaigns = campaignsData?.campaigns || [];
+
+  const handleCreateCampaign = async () => {
     if (!campaignName.trim()) {
       toast({
         title: "Error",
@@ -55,19 +70,65 @@ export default function Campaigns() {
       return;
     }
 
-    toast({
-      title: "Campaign Created!",
-      description: `"${campaignName}" has been created and ${scheduleType === 'now' ? 'is being sent' : 'scheduled'} successfully.`
-    });
+    try {
+      const newCampaign = await createCampaign.mutateAsync({
+        name: campaignName,
+        content: campaignMessage,
+        media_type: campaignType as any,
+        filter_group_id: targetGroup && targetGroup !== 'all' ? parseInt(targetGroup) : undefined,
+      });
 
-    // Reset form
-    setCampaignName('');
-    setCampaignType('text');
-    setCampaignMessage('');
-    setTargetGroup('');
-    setScheduleType('now');
-    setIsCreateDialogOpen(false);
+      if (scheduleType === 'now') {
+        await executeCampaign.mutateAsync(newCampaign.id);
+      }
+
+      toast({
+        title: "Campaign Created!",
+        description: `"${campaignName}" has been created and ${scheduleType === 'now' ? 'is being sent' : 'saved as draft'} successfully.`
+      });
+
+      // Reset form
+      setCampaignName('');
+      setCampaignType('text');
+      setCampaignMessage('');
+      setTargetGroup('');
+      setScheduleType('now');
+      setIsCreateDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create campaign. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <Header title="Campaigns" subtitle="Manage WhatsApp bulk campaigns" />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Layout>
+        <Header title="Campaigns" subtitle="Manage WhatsApp bulk campaigns" />
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <AlertCircle className="h-12 w-12 text-destructive" />
+          <p className="text-muted-foreground">Failed to load campaigns</p>
+          <Button onClick={() => refetch()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -75,7 +136,12 @@ export default function Campaigns() {
 
       <div className="p-6">
         {/* Create Campaign Button */}
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex justify-between items-center">
+          {dailyLimit && (
+            <div className="text-sm text-muted-foreground">
+              Daily Limit: {dailyLimit.sent_today}/{dailyLimit.daily_limit} ({dailyLimit.remaining} remaining)
+            </div>
+          )}
           <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Create Campaign
@@ -94,11 +160,11 @@ export default function Campaigns() {
 
         {/* Campaigns Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {mockCampaigns.map((campaign, index) => {
-            const TypeIcon = campaignTypeIcons[campaign.type];
-            const totalRecipients = campaign.sentCount + campaign.failedCount;
+          {campaigns.map((campaign, index) => {
+            const TypeIcon = campaignTypeIcons[campaign.media_type || 'text'] || Type;
+            const totalRecipients = campaign.total_recipients || 0;
             const successRate = totalRecipients > 0
-              ? Math.round((campaign.sentCount / totalRecipients) * 100)
+              ? Math.round((campaign.sent_count / totalRecipients) * 100)
               : 0;
 
             return (
@@ -116,11 +182,11 @@ export default function Campaigns() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-foreground">{campaign.name}</h3>
-                        <p className="text-xs text-muted-foreground capitalize">{campaign.type} campaign</p>
+                        <p className="text-xs text-muted-foreground capitalize">{campaign.media_type || 'text'} campaign</p>
                       </div>
                     </div>
-                    <Badge className={cn('text-xs', statusColors[campaign.status])}>
-                      {campaign.status}
+                    <Badge className={cn('text-xs', statusColors[campaign.status] || statusColors.draft)}>
+                      {campaign.status.replace('_', ' ')}
                     </Badge>
                   </div>
                 </div>
@@ -128,34 +194,32 @@ export default function Campaigns() {
                 {/* Body */}
                 <div className="p-4">
                   {/* Stats */}
-                  {campaign.status === 'sent' && (
+                  {(campaign.status === 'completed' || campaign.status === 'in_progress') && (
                     <div className="mb-4">
                       <div className="mb-1 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Success Rate</span>
+                        <span className="text-muted-foreground">Progress</span>
                         <span className="font-medium text-foreground">{successRate}%</span>
                       </div>
                       <Progress value={successRate} className="h-2" />
                       <div className="mt-2 flex gap-4 text-xs">
-                        <span className="text-status-converted">✓ {campaign.sentCount} sent</span>
-                        <span className="text-destructive">✗ {campaign.failedCount} failed</span>
+                        <span className="text-status-converted">✓ {campaign.sent_count} sent</span>
+                        <span className="text-destructive">✗ {campaign.failed_count} failed</span>
                       </div>
                     </div>
                   )}
 
                   {/* Target Info */}
                   <div className="space-y-2 text-sm">
-                    {campaign.targetFilters.groups && (
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {campaign.targetFilters.groups.length} service groups
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        {totalRecipients} recipients
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        {format(campaign.createdAt, 'PPP')}
+                        {format(new Date(campaign.created_at), 'PPP')}
                       </span>
                     </div>
                   </div>
@@ -163,18 +227,25 @@ export default function Campaigns() {
                   {/* Actions */}
                   <div className="mt-4 flex gap-2">
                     {campaign.status === 'draft' && (
-                      <Button size="sm" className="flex-1" onClick={() => toast({ title: "Sending Campaign", description: `"${campaign.name}" is being sent to recipients.` })}>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          executeCampaign.mutate(campaign.id);
+                          toast({ title: "Sending Campaign", description: `"${campaign.name}" is being sent to recipients.` });
+                        }}
+                      >
                         <Send className="h-4 w-4" />
                         Send Now
                       </Button>
                     )}
                     {campaign.status === 'scheduled' && (
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => toast({ title: "Edit Schedule", description: `Editing schedule for "${campaign.name}".` })}>
+                      <Button size="sm" variant="outline" className="flex-1">
                         Edit Schedule
                       </Button>
                     )}
-                    {campaign.status === 'sent' && (
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => toast({ title: "Campaign Report", description: `Viewing report for "${campaign.name}".` })}>
+                    {(campaign.status === 'completed' || campaign.status === 'in_progress') && (
+                      <Button size="sm" variant="outline" className="flex-1">
                         View Report
                       </Button>
                     )}
@@ -279,11 +350,11 @@ export default function Campaigns() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Leads</SelectItem>
-                  <SelectItem value="new">New Leads (Last 7 days)</SelectItem>
-                  <SelectItem value="active">Active Customers</SelectItem>
-                  <SelectItem value="facial">Facial Customers</SelectItem>
-                  <SelectItem value="hair">Hair Treatment Customers</SelectItem>
-                  <SelectItem value="inactive">Inactive (30+ days)</SelectItem>
+                  {groups?.map((group) => (
+                    <SelectItem key={group.id} value={String(group.id)}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -308,28 +379,20 @@ export default function Campaigns() {
                   onClick={() => setScheduleType('later')}
                 >
                   <Clock className="mr-2 h-4 w-4" />
-                  Schedule Later
+                  Save as Draft
                 </Button>
               </div>
             </div>
-
-            {scheduleType === 'later' && (
-              <div className="space-y-2">
-                <Label htmlFor="schedule-date">Schedule Date & Time</Label>
-                <Input
-                  id="schedule-date"
-                  type="datetime-local"
-                />
-              </div>
-            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateCampaign}>
-              {scheduleType === 'now' ? (
+            <Button onClick={handleCreateCampaign} disabled={createCampaign.isPending}>
+              {createCampaign.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : scheduleType === 'now' ? (
                 <>
                   <Send className="mr-2 h-4 w-4" />
                   Create & Send
@@ -337,7 +400,7 @@ export default function Campaigns() {
               ) : (
                 <>
                   <Clock className="mr-2 h-4 w-4" />
-                  Schedule Campaign
+                  Save Draft
                 </>
               )}
             </Button>

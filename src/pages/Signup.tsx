@@ -2,11 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart3 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Signup() {
+    const navigate = useNavigate();
+    const { signUp } = useAuth();
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -20,16 +22,19 @@ export default function Signup() {
         e.preventDefault();
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            toast({
-                title: "Account Created!",
-                description: "Welcome to ClientCare. Redirecting to your dashboard...",
+        try {
+            await signUp(formData.email, formData.password, {
+                fullName: formData.fullName,
+                clinicName: formData.clinicName,
+                phone: formData.phone
             });
+            // Navigate to dashboard after successful registration
+            navigate('/dashboard');
+        } catch (error) {
+            // Error handled by AuthContext
+        } finally {
             setIsLoading(false);
-            // In production: navigate to dashboard or organization setup
-            window.location.href = '/leads';
-        }, 1500);
+        }
     };
 
     return (
@@ -109,10 +114,10 @@ export default function Signup() {
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                     required
-                                    minLength={8}
+                                    minLength={6}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Must be at least 8 characters
+                                    Must be at least 6 characters
                                 </p>
                             </div>
 

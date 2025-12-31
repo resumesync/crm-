@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { SERVICE_CONFIG, LeadSource, ServiceGroup } from '@/types/crm';
-import { mockUsers } from '@/data/mockData';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +18,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+
+// Placeholder team members until API endpoint is added
+const teamMembers = [
+  { id: '1', name: 'Admin', role: 'admin' },
+  { id: '2', name: 'Manager', role: 'manager' },
+];
 
 interface AddLeadDialogProps {
   open: boolean;
@@ -147,7 +152,7 @@ export function AddLeadDialog({ open, onOpenChange }: AddLeadDialogProps) {
                   <SelectValue placeholder="Select team member" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockUsers.map((user) => (
+                  {teamMembers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name} ({user.role})
                     </SelectItem>

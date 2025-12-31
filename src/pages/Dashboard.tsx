@@ -2,24 +2,60 @@ import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight } from 'lucide-react';
+import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-const stats = [
-    { name: 'Total Leads', value: '2,847', change: '+12%', icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { name: 'Messages Sent', value: '1,234', change: '+8%', icon: MessageCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { name: 'Active Campaigns', value: '12', change: '+2', icon: Megaphone, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { name: 'Avg. Rating', value: '4.8', change: '+0.2', icon: Star, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
-];
-
-const recentLeads = [
-    { name: 'Priya Sharma', service: 'Hair Transplant', status: 'New', time: '5 min ago' },
-    { name: 'Rahul Kumar', service: 'Skin Treatment', status: 'Contacted', time: '15 min ago' },
-    { name: 'Anita Patel', service: 'Chemical Peel', status: 'Converted', time: '1 hour ago' },
-    { name: 'Vikram Singh', service: 'Acne Treatment', status: 'New', time: '2 hours ago' },
-];
+import { useLeads } from '@/hooks/useLeads';
+import { useCampaigns } from '@/hooks/useCampaigns';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function Dashboard() {
+    // Fetch leads data for stats and recent leads
+    const { data: leadsData, isLoading: leadsLoading } = useLeads({ page: 1, per_page: 5 });
+    const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns({ limit: 50 });
+
+    const totalLeads = leadsData?.total || 0;
+    const recentLeads = leadsData?.leads || [];
+    const activeCampaigns = campaignsData?.campaigns?.filter(c =>
+        c.status === 'in_progress' || c.status === 'scheduled'
+    ).length || 0;
+
+    const isLoading = leadsLoading || campaignsLoading;
+
+    const stats = [
+        {
+            name: 'Total Leads',
+            value: isLoading ? '-' : totalLeads.toLocaleString(),
+            change: '+12%',
+            icon: Users,
+            color: 'text-blue-500',
+            bg: 'bg-blue-500/10'
+        },
+        {
+            name: 'Messages Sent',
+            value: '-',
+            change: '+8%',
+            icon: MessageCircle,
+            color: 'text-green-500',
+            bg: 'bg-green-500/10'
+        },
+        {
+            name: 'Active Campaigns',
+            value: isLoading ? '-' : String(activeCampaigns),
+            change: '+2',
+            icon: Megaphone,
+            color: 'text-purple-500',
+            bg: 'bg-purple-500/10'
+        },
+        {
+            name: 'Avg. Rating',
+            value: '4.8',
+            change: '+0.2',
+            icon: Star,
+            color: 'text-yellow-500',
+            bg: 'bg-yellow-500/10'
+        },
+    ];
+
     return (
         <Layout>
             <Header title="Dashboard" subtitle="Welcome back! Here's your overview." />
@@ -108,32 +144,51 @@ export default function Dashboard() {
                             <Button variant="ghost" size="sm">View All</Button>
                         </Link>
                     </div>
-                    <div className="space-y-3">
-                        {recentLeads.map((lead, index) => (
-                            <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <span className="text-sm font-medium text-primary">
-                                            {lead.name.split(' ').map(n => n[0]).join('')}
+                    {leadsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : recentLeads.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <p>No leads yet</p>
+                            <p className="text-sm mt-1">Leads will appear here when captured from Meta or added manually</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {recentLeads.map((lead) => (
+                                <div key={lead.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <span className="text-sm font-medium text-primary">
+                                                {(lead.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">{lead.full_name || 'Unknown'}</p>
+                                            <p className="text-sm text-muted-foreground">{lead.service_interested || lead.lead_source}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${lead.status.toLowerCase() === 'new' || lead.status.toLowerCase() === 'new lead'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : lead.status.toLowerCase() === 'contacted'
+                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                    : lead.status.toLowerCase() === 'converted'
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {lead.status}
                                         </span>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">{lead.name}</p>
-                                        <p className="text-sm text-muted-foreground">{lead.service}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {lead.created_at
+                                                ? formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })
+                                                : '-'}
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${lead.status === 'New' ? 'bg-blue-100 text-blue-700' :
-                                            lead.status === 'Contacted' ? 'bg-yellow-100 text-yellow-700' :
-                                                'bg-green-100 text-green-700'
-                                        }`}>
-                                        {lead.status}
-                                    </span>
-                                    <p className="text-xs text-muted-foreground mt-1">{lead.time}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </Card>
 
                 {/* Upcoming */}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['admin', 'agent'] },
@@ -32,7 +33,22 @@ const navigation = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const [userRole, setUserRole] = useState<'admin' | 'agent'>('admin'); // Default to admin, can be toggled
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  // Get user role from backend user data
+  // Admin if: is_superuser OR role_name is 'admin' OR has role_id (for now, any role = admin)
+  const isAdmin = user?.is_superuser || user?.role_name === 'admin' || (user?.role_id !== null && user?.role_id !== undefined);
+  const userRole = isAdmin ? 'admin' : 'agent';
+
+  // Get user display name
+  const userName = user?.full_name || user?.username || 'User';
+  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const handleLogout = () => {
+    signOut();
+    navigate('/login');
+  };
 
   return (
     <aside
@@ -105,31 +121,17 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Role Switcher (For Demo/Testing) */}
+        {/* Role Display (For Info) */}
         {!collapsed && (
           <div className="px-3 pb-2">
             <div className="flex items-center justify-between rounded-md bg-sidebar-accent/50 p-2 text-xs">
-              <span className="font-medium text-sidebar-foreground">View as:</span>
-              <div className="flex gap-1 rounded bg-background p-1">
-                <button
-                  onClick={() => setUserRole('admin')}
-                  className={cn(
-                    "px-2 py-0.5 rounded transition-colors",
-                    userRole === 'admin' ? "bg-primary text-primary-foreground" : "hover:bg-sidebar-accent"
-                  )}
-                >
-                  Admin
-                </button>
-                <button
-                  onClick={() => setUserRole('agent')}
-                  className={cn(
-                    "px-2 py-0.5 rounded transition-colors",
-                    userRole === 'agent' ? "bg-primary text-primary-foreground" : "hover:bg-sidebar-accent"
-                  )}
-                >
-                  Agent
-                </button>
-              </div>
+              <span className="font-medium text-sidebar-foreground">Role:</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded capitalize",
+                userRole === 'admin' ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+              )}>
+                {userRole}
+              </span>
             </div>
           </div>
         )}
@@ -144,21 +146,31 @@ export function Sidebar() {
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent">
               <span className="text-xs font-medium text-sidebar-accent-foreground">
-                {userRole === 'admin' ? 'PS' : 'JD'}
+                {userInitials}
               </span>
             </div>
             {!collapsed && (
               <div className="flex-1 overflow-hidden">
                 <p className="truncate text-sm font-medium text-sidebar-foreground">
-                  {userRole === 'admin' ? 'Priya Sharma' : 'John Doe'}
+                  {userName}
                 </p>
                 <p className="truncate text-xs text-sidebar-foreground/60 capitalize">{userRole}</p>
               </div>
             )}
             {!collapsed && (
-              <Button variant="ghost" size="icon-sm" className="text-sidebar-foreground/60 hover:text-sidebar-foreground">
-                <LogOut className="h-4 w-4" />
-              </Button>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Logout</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>

@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { mockUsers } from '@/data/mockData';
 import { Badge } from '@/components/ui/badge';
 import {
   Users,
@@ -27,6 +26,12 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Placeholder users until API endpoint is added
+const teamMembers = [
+  { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'admin' as const },
+  { id: '2', name: 'Manager User', email: 'manager@example.com', role: 'manager' as const },
+];
 
 const roleColors = {
   admin: 'bg-primary text-primary-foreground',
@@ -501,7 +506,7 @@ export default function Settings() {
             </div>
             <Separator className="my-4" />
             <div className="space-y-3">
-              {mockUsers.map((user) => (
+              {teamMembers.map((user) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between rounded-lg border border-border/50 bg-secondary/20 p-3"

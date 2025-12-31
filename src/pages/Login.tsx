@@ -2,11 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart3 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
+    const navigate = useNavigate();
+    const { signIn } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -17,16 +19,15 @@ export default function Login() {
         e.preventDefault();
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            toast({
-                title: "Welcome back!",
-                description: "Redirecting to your dashboard...",
-            });
+        try {
+            await signIn(formData.email, formData.password);
+            // Navigate to dashboard after successful login
+            navigate('/dashboard');
+        } catch (error) {
+            // Error handled by AuthContext
+        } finally {
             setIsLoading(false);
-            // In production: verify credentials and navigate
-            window.location.href = '/leads';
-        }, 1000);
+        }
     };
 
     return (
@@ -52,10 +53,10 @@ export default function Login() {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">Email or Username</Label>
                                 <Input
                                     id="email"
-                                    type="email"
+                                    type="text"
                                     placeholder="your@email.com"
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}

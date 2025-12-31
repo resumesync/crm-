@@ -1,6 +1,7 @@
-import { mockLeads } from '@/data/mockData';
 import { STATUS_CONFIG, LeadStatus } from '@/types/crm';
+import { useLeads } from '@/hooks/useLeads';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 const statusOrder: LeadStatus[] = [
   'new',
@@ -11,14 +12,45 @@ const statusOrder: LeadStatus[] = [
   'converted',
 ];
 
+// Map API status to frontend status key
+const mapStatus = (apiStatus: string): LeadStatus => {
+  const statusMap: Record<string, LeadStatus> = {
+    'new': 'new',
+    'new lead': 'new',
+    'contacted': 'contacted',
+    'meeting booked': 'meeting_booked',
+    'meeting_booked': 'meeting_booked',
+    'proposal sent': 'proposal_sent',
+    'proposal_sent': 'proposal_sent',
+    'follow-up required': 'followup_required',
+    'followup_required': 'followup_required',
+    'converted': 'converted',
+  };
+  return statusMap[apiStatus.toLowerCase()] || 'new';
+};
+
 export function PipelineChart() {
+  const { data, isLoading } = useLeads({ page: 1, per_page: 1000 });
+  const leads = data?.leads || [];
+
   const statusCounts = statusOrder.map((status) => ({
     status,
-    count: mockLeads.filter((l) => l.status === status).length,
+    count: leads.filter((l) => mapStatus(l.status) === status).length,
     ...STATUS_CONFIG[status],
   }));
 
-  const maxCount = Math.max(...statusCounts.map((s) => s.count));
+  const maxCount = Math.max(...statusCounts.map((s) => s.count), 1);
+
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in rounded-xl border border-border bg-card p-6 shadow-soft" style={{ animationDelay: '300ms' }}>
+        <h3 className="text-lg font-semibold text-foreground">Pipeline Overview</h3>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in rounded-xl border border-border bg-card p-6 shadow-soft" style={{ animationDelay: '300ms' }}>

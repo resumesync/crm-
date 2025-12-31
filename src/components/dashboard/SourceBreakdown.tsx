@@ -1,17 +1,32 @@
-import { mockLeads } from '@/data/mockData';
 import { SOURCE_CONFIG, LeadSource } from '@/types/crm';
+import { useLeads } from '@/hooks/useLeads';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 export function SourceBreakdown() {
+  const { data, isLoading } = useLeads({ page: 1, per_page: 1000 });
+  const leads = data?.leads || [];
+
   const sources: LeadSource[] = ['meta', 'google', 'manual', 'upload'];
-  
+
   const sourceData = sources.map((source) => ({
     source,
-    count: mockLeads.filter((l) => l.source === source).length,
+    count: leads.filter((l) => l.lead_source === source).length,
     ...SOURCE_CONFIG[source],
   }));
 
-  const total = sourceData.reduce((sum, s) => sum + s.count, 0);
+  const total = Math.max(sourceData.reduce((sum, s) => sum + s.count, 0), 1);
+
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in rounded-xl border border-border bg-card p-6 shadow-soft" style={{ animationDelay: '350ms' }}>
+        <h3 className="text-lg font-semibold text-foreground">Lead Sources</h3>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in rounded-xl border border-border bg-card p-6 shadow-soft" style={{ animationDelay: '350ms' }}>
