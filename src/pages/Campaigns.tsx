@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { mockCampaigns } from '@/data/mockData';
@@ -5,10 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Image, Video, Type, Calendar, Send, Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, Image, Video, Type, Calendar, Send, Users, X, MessageSquare, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const campaignTypeIcons = {
   image: Image,
@@ -24,14 +30,53 @@ const statusColors = {
 };
 
 export default function Campaigns() {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignType, setCampaignType] = useState('text');
+  const [campaignMessage, setCampaignMessage] = useState('');
+  const [targetGroup, setTargetGroup] = useState('');
+  const [scheduleType, setScheduleType] = useState('now');
+
+  const handleCreateCampaign = () => {
+    if (!campaignName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a campaign name.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!campaignMessage.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a campaign message.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    toast({
+      title: "Campaign Created!",
+      description: `"${campaignName}" has been created and ${scheduleType === 'now' ? 'is being sent' : 'scheduled'} successfully.`
+    });
+
+    // Reset form
+    setCampaignName('');
+    setCampaignType('text');
+    setCampaignMessage('');
+    setTargetGroup('');
+    setScheduleType('now');
+    setIsCreateDialogOpen(false);
+  };
+
   return (
     <Layout>
       <Header title="Campaigns" subtitle="Manage WhatsApp bulk campaigns" />
-      
+
       <div className="p-6">
         {/* Create Campaign Button */}
         <div className="mb-6 flex justify-end">
-          <Button onClick={() => toast({ title: "Create Campaign", description: "Campaign creation form coming soon!" })}>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Create Campaign
           </Button>
@@ -52,8 +97,8 @@ export default function Campaigns() {
           {mockCampaigns.map((campaign, index) => {
             const TypeIcon = campaignTypeIcons[campaign.type];
             const totalRecipients = campaign.sentCount + campaign.failedCount;
-            const successRate = totalRecipients > 0 
-              ? Math.round((campaign.sentCount / totalRecipients) * 100) 
+            const successRate = totalRecipients > 0
+              ? Math.round((campaign.sentCount / totalRecipients) * 100)
               : 0;
 
             return (
@@ -140,9 +185,9 @@ export default function Campaigns() {
           })}
 
           {/* Empty State / Create New */}
-          <Card 
+          <Card
             className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center border-dashed bg-secondary/20 p-6 transition-all hover:border-primary hover:bg-secondary/30"
-            onClick={() => toast({ title: "Create Campaign", description: "Campaign creation form coming soon!" })}
+            onClick={() => setIsCreateDialogOpen(true)}
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Plus className="h-6 w-6 text-primary" />
@@ -154,6 +199,151 @@ export default function Campaigns() {
           </Card>
         </div>
       </div>
+
+      {/* Create Campaign Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              Create New Campaign
+            </DialogTitle>
+            <DialogDescription>
+              Set up a new WhatsApp bulk messaging campaign. Fill in the details below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Campaign Name */}
+            <div className="space-y-2">
+              <Label htmlFor="campaign-name">Campaign Name *</Label>
+              <Input
+                id="campaign-name"
+                placeholder="e.g., Summer Sale Announcement"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+              />
+            </div>
+
+            {/* Campaign Type */}
+            <div className="space-y-2">
+              <Label htmlFor="campaign-type">Campaign Type</Label>
+              <Select value={campaignType} onValueChange={setCampaignType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">
+                    <div className="flex items-center gap-2">
+                      <Type className="h-4 w-4" />
+                      Text Only
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="image">
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      Image + Text
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="video">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4" />
+                      Video + Text
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Message */}
+            <div className="space-y-2">
+              <Label htmlFor="campaign-message">Message *</Label>
+              <Textarea
+                id="campaign-message"
+                placeholder="Enter your campaign message here..."
+                className="min-h-[100px]"
+                value={campaignMessage}
+                onChange={(e) => setCampaignMessage(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {campaignMessage.length}/1000 characters • Use {'{name}'} for personalization
+              </p>
+            </div>
+
+            {/* Target Group */}
+            <div className="space-y-2">
+              <Label htmlFor="target-group">Target Group</Label>
+              <Select value={targetGroup} onValueChange={setTargetGroup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Leads</SelectItem>
+                  <SelectItem value="new">New Leads (Last 7 days)</SelectItem>
+                  <SelectItem value="active">Active Customers</SelectItem>
+                  <SelectItem value="facial">Facial Customers</SelectItem>
+                  <SelectItem value="hair">Hair Treatment Customers</SelectItem>
+                  <SelectItem value="inactive">Inactive (30+ days)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Schedule */}
+            <div className="space-y-2">
+              <Label>Schedule</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={scheduleType === 'now' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setScheduleType('now')}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Now
+                </Button>
+                <Button
+                  type="button"
+                  variant={scheduleType === 'later' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setScheduleType('later')}
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  Schedule Later
+                </Button>
+              </div>
+            </div>
+
+            {scheduleType === 'later' && (
+              <div className="space-y-2">
+                <Label htmlFor="schedule-date">Schedule Date & Time</Label>
+                <Input
+                  id="schedule-date"
+                  type="datetime-local"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCampaign}>
+              {scheduleType === 'now' ? (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Create & Send
+                </>
+              ) : (
+                <>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Schedule Campaign
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
