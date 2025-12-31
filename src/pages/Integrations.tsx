@@ -21,10 +21,12 @@ export default function Integrations() {
   const pageTitle = "Integrations";
   const pageSubtitle = "Connect Meta, Google & WhatsApp APIs";
 
+  const BACKEND_URL = "http://localhost:8000";
+
   const [metaConfig, setMetaConfig] = useState<IntegrationConfig>({
     enabled: true,
-    connected: true,
-    lastSync: "2 hours ago"
+    connected: false,
+    lastSync: ""
   });
 
   const [googleConfig, setGoogleConfig] = useState<IntegrationConfig>({
@@ -36,6 +38,15 @@ export default function Integrations() {
     enabled: true,
     connected: false
   });
+
+  // Meta Lead Ads configuration state
+  const [metaAccessToken, setMetaAccessToken] = useState("");
+  const [metaPageId, setMetaPageId] = useState("");
+  const [metaVerifyToken, setMetaVerifyToken] = useState("clientcare_verify_token");
+  const [showMetaToken, setShowMetaToken] = useState(false);
+  const [isTestingMeta, setIsTestingMeta] = useState(false);
+  const [metaTestResult, setMetaTestResult] = useState<{ success: boolean; message: string; pageName?: string } | null>(null);
+  const [leadStats, setLeadStats] = useState({ total: 0, today: 0, new: 0 });
 
   // WhatsApp configuration state
   const [whatsappAccessToken, setWhatsappAccessToken] = useState("");
@@ -51,22 +62,101 @@ export default function Integrations() {
   const [testMessage, setTestMessage] = useState("Hello! This is a test message from ClientCare CRM.");
   const [isSendingTest, setIsSendingTest] = useState(false);
 
-  const [metaForms] = useState([
+  const [metaForms, setMetaForms] = useState([
     { id: "1", name: "Chemical Peel Inquiry", pageId: "123456789", status: "active", leads: 45 },
     { id: "2", name: "Hair Transplant Consultation", pageId: "123456789", status: "active", leads: 32 },
     { id: "3", name: "Skin Treatment Lead", pageId: "987654321", status: "paused", leads: 18 }
   ]);
 
-  const webhookUrl = "https://your-api.com/webhooks/leads";
+  const metaWebhookUrl = `${BACKEND_URL}/api/webhook/meta`;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
 
+  // Test Meta Lead Ads connection
+  const testMetaConnection = async () => {
+    if (!metaAccessToken || !metaPageId) {
+      toast.error("Please enter Access Token and Page ID");
+      return;
+    }
+
+    setIsTestingMeta(true);
+    setMetaTestResult(null);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/meta/test-connection`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: metaAccessToken,
+          page_id: metaPageId
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMetaTestResult({
+          success: true,
+          message: `Connected to: ${data.page_name}`,
+          pageName: data.page_name
+        });
+        setMetaConfig(prev => ({ ...prev, connected: true }));
+        toast.success("Meta Lead Ads connected!");
+        fetchLeadStats();
+      } else {
+        setMetaTestResult({ success: false, message: data.error || "Connection failed" });
+        toast.error("Connection failed: " + data.error);
+      }
+    } catch (error) {
+      setMetaTestResult({ success: false, message: "Could not reach the backend server" });
+      toast.error("Could not connect to backend. Make sure it's running on port 8000.");
+    } finally {
+      setIsTestingMeta(false);
+    }
+  };
+
+  // Fetch lead statistics from backend
+  const fetchLeadStats = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/stats`);
+      const data = await response.json();
+      setLeadStats({
+        total: data.total_leads || 0,
+        today: data.today_leads || 0,
+        new: data.new_leads || 0
+      });
+    } catch (error) {
+      console.log("Could not fetch lead stats");
+    }
+  };
+
+  // Create test lead for demo
+  const createTestLead = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/leads/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Test Lead",
+          email: "test@example.com",
+          phone: "+91 98765 43210"
+        })
+      });
+
+      if (response.ok) {
+        toast.success("Test lead created! Check the Leads page.");
+        fetchLeadStats();
+      }
+    } catch (error) {
+      toast.error("Could not create test lead. Is the backend running?");
+    }
+  };
+
   const handleMetaConnect = () => {
     toast.success("Opening Meta Business Suite...");
-    // In production, this would open OAuth flow
     window.open("https://business.facebook.com/", "_blank");
   };
 
@@ -77,6 +167,7 @@ export default function Integrations() {
 
   const syncLeads = (platform: string) => {
     toast.success(`Syncing ${platform} leads...`);
+    fetchLeadStats();
   };
 
   const testWhatsAppConnection = async () => {
@@ -405,8 +496,8 @@ export default function Integrations() {
                       </svg>
                     </div>
                     <div>
-                      <CardTitle>Meta Lead Forms</CardTitle>
-                      <CardDescription>Connect Facebook & Instagram lead ads</CardDescription>
+                      <CardTitle>Meta Lead Ads API</CardTitle>
+                      <CardDescription>Auto-capture leads from Facebook & Instagram ads</CardDescription>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -427,80 +518,149 @@ export default function Integrations() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!metaConfig.connected ? (
-                  <div className="rounded-lg border border-dashed border-border p-6 text-center">
-                    <p className="mb-4 text-muted-foreground">Connect your Meta Business account to sync leads automatically</p>
-                    <Button onClick={handleMetaConnect}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Connect Meta Business
+                {/* Setup Instructions */}
+                <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+                  <h4 className="font-medium text-blue-600 mb-2">📋 Setup Instructions</h4>
+                  <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Meta for Developers</a> and create an app</li>
+                    <li>Add "Webhooks" product to your app</li>
+                    <li>Subscribe to "Page" webhooks with "leadgen" event</li>
+                    <li>Get a Page Access Token with leads_retrieval permission</li>
+                    <li>Enter your credentials below and test the connection</li>
+                  </ol>
+                </div>
+
+                {/* Webhook URL */}
+                <div className="space-y-2">
+                  <Label>Webhook URL (add this to Meta Developer Console)</Label>
+                  <div className="flex gap-2">
+                    <Input value={metaWebhookUrl} readOnly className="bg-muted/50 font-mono text-sm" />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(metaWebhookUrl, "Webhook URL")}>
+                      <Copy className="h-4 w-4" />
                     </Button>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Page ID</Label>
-                        <Input value="123456789012345" readOnly className="bg-muted/50" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Default Lead Group</Label>
-                        <Select defaultValue="chemical-peel">
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="chemical-peel">Chemical Peel</SelectItem>
-                            <SelectItem value="hair-transplant">Hair Transplantation</SelectItem>
-                            <SelectItem value="acne">Acne Treatment</SelectItem>
-                            <SelectItem value="skin">Skin Brightening</SelectItem>
-                            <SelectItem value="ivf">IVF / Gynecology</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                </div>
 
-                    <div className="space-y-2">
-                      <Label>Webhook URL</Label>
-                      <div className="flex gap-2">
-                        <Input value={webhookUrl} readOnly className="bg-muted/50 font-mono text-sm" />
-                        <Button variant="outline" size="icon" onClick={() => copyToClipboard(webhookUrl, "Webhook URL")}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Add this URL to your Meta Lead Ads webhook settings</p>
+                {/* API Credentials */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="meta-token">Page Access Token *</Label>
+                    <div className="relative">
+                      <Input
+                        id="meta-token"
+                        type={showMetaToken ? "text" : "password"}
+                        value={metaAccessToken}
+                        onChange={(e) => setMetaAccessToken(e.target.value)}
+                        placeholder="EAAxxxxxxx..."
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowMetaToken(!showMetaToken)}
+                      >
+                        {showMetaToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meta-page-id">Facebook Page ID *</Label>
+                    <Input
+                      id="meta-page-id"
+                      value={metaPageId}
+                      onChange={(e) => setMetaPageId(e.target.value)}
+                      placeholder="123456789012345"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meta-verify-token">Webhook Verify Token</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="meta-verify-token"
+                        value={metaVerifyToken}
+                        onChange={(e) => setMetaVerifyToken(e.target.value)}
+                        placeholder="clientcare_verify_token"
+                      />
+                      <Button variant="outline" size="icon" onClick={() => copyToClipboard(metaVerifyToken, "Verify Token")}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Use this token when setting up webhook in Meta</p>
+                  </div>
+                </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Connected Forms</Label>
-                        <Button variant="ghost" size="sm" onClick={() => syncLeads("Meta")}>
-                          <RefreshCw className="mr-2 h-4 w-4" />
-                          Sync Now
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {metaForms.map((form) => (
-                          <div key={form.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-                            <div>
-                              <p className="font-medium">{form.name}</p>
-                              <p className="text-sm text-muted-foreground">Page ID: {form.pageId}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <Badge variant={form.status === "active" ? "default" : "secondary"}>
-                                {form.leads} leads
-                              </Badge>
-                              <Badge variant={form.status === "active" ? "outline" : "secondary"}>
-                                {form.status}
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                {/* Test Result */}
+                {metaTestResult && (
+                  <div className={`rounded-lg p-3 ${metaTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                    <div className="flex items-center gap-2">
+                      {metaTestResult.success ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span className={metaTestResult.success ? 'text-green-600' : 'text-red-600'}>
+                        {metaTestResult.message}
+                      </span>
                     </div>
-                  </>
+                  </div>
                 )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button onClick={testMetaConnection} disabled={isTestingMeta}>
+                    {isTestingMeta ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Test Connection
+                      </>
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={createTestLead}>
+                    Create Test Lead
+                  </Button>
+                  <Button variant="ghost" onClick={handleMetaConnect}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Meta Business
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Lead Stats Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Lead Statistics</CardTitle>
+                <CardDescription>Leads captured from Meta Lead Ads</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 rounded-lg bg-muted/50">
+                    <p className="text-3xl font-bold text-primary">{leadStats.total}</p>
+                    <p className="text-sm text-muted-foreground">Total Leads</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-muted/50">
+                    <p className="text-3xl font-bold text-green-600">{leadStats.today}</p>
+                    <p className="text-sm text-muted-foreground">Today</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-muted/50">
+                    <p className="text-3xl font-bold text-blue-600">{leadStats.new}</p>
+                    <p className="text-sm text-muted-foreground">New</p>
+                  </div>
+                </div>
+                <Button variant="outline" className="w-full mt-4" onClick={() => syncLeads("Meta")}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh Stats
+                </Button>
+              </CardContent>
+            </Card>
+
           </TabsContent>
 
           {/* Google Lead Forms */}
@@ -551,7 +711,7 @@ export default function Integrations() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+      </div >
+    </Layout >
   );
 }

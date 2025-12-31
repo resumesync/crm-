@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['admin', 'agent'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'agent'] },
   { name: 'Leads', href: '/leads', icon: Users, roles: ['admin', 'agent'] },
   { name: 'Follow-ups', href: '/followups', icon: CalendarCheck, roles: ['admin', 'agent'] },
   { name: 'Quick Messages', href: '/messages', icon: MessageSquare, roles: ['admin', 'agent'] },

@@ -1,80 +1,164 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
+
+// Facebook SDK types
+declare global {
+    interface Window {
+        FB: any;
+        fbAsyncInit: () => void;
+    }
+}
 
 interface User {
     id: string;
     email: string;
-    name?: string;
-    role?: 'admin' | 'agent';
+    name: string;
+    picture?: string;
+    role: 'admin' | 'agent';
+    provider: 'facebook' | 'email';
 }
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
     isAuthenticated: boolean;
-    signUp: (email: string, password: string, metadata: any) => Promise<void>;
-    signIn: (email: string, password: string) => Promise<void>;
-    signOut: () => Promise<void>;
+    loginWithFacebook: () => Promise<void>;
+    loginWithEmail: (email: string, password: string) => Promise<void>;
+    logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for demo purposes
-const DEMO_USER: User = {
-    id: '1',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    role: 'admin'
-};
+// Your Facebook App ID - Replace with your actual App ID
+const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(DEMO_USER); // Auto-login for demo
-    const [loading, setLoading] = useState(false);
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [fbLoaded, setFbLoaded] = useState(false);
 
-    const signUp = async (email: string, password: string, metadata: any) => {
+    // Load Facebook SDK
+    useEffect(() => {
+        // Check for saved user
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+            setUser(JSON.parse(savedUser));
+        }
+        setLoading(false);
+
+        // Load Facebook SDK
+        window.fbAsyncInit = function () {
+            window.FB.init({
+                appId: FACEBOOK_APP_ID,
+                cookie: true,
+                xfbml: true,
+                version: 'v18.0'
+            });
+            setFbLoaded(true);
+
+            // Check if already logged in
+            window.FB.getLoginStatus((response: any) => {
+                if (response.status === 'connected') {
+                    fetchFacebookUser(response.authResponse.accessToken);
+                }
+            });
+        };
+
+        // Load SDK script
+        if (!document.getElementById('facebook-jssdk')) {
+            const script = document.createElement('script');
+            script.id = 'facebook-jssdk';
+            script.src = 'https://connect.facebook.net/en_US/sdk.js';
+            script.async = true;
+            script.defer = true;
+            document.body.appendChild(script);
+        }
+    }, []);
+
+    const fetchFacebookUser = async (accessToken: string) => {
         try {
-            setLoading(true);
-            // Simulate signup - in production, connect to your auth provider
-            const newUser: User = {
-                id: Date.now().toString(),
-                email,
-                name: metadata.name || email.split('@')[0],
-                role: 'admin'
+            const response = await fetch(
+                `https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${accessToken}`
+            );
+            const data = await response.json();
+
+            const fbUser: User = {
+                id: data.id,
+                email: data.email || `${data.id}@facebook.com`,
+                name: data.name,
+                picture: data.picture?.data?.url,
+                role: 'admin',
+                provider: 'facebook'
             };
-            setUser(newUser);
-            localStorage.setItem('user', JSON.stringify(newUser));
+
+            setUser(fbUser);
+            localStorage.setItem('user', JSON.stringify(fbUser));
+            localStorage.setItem('fb_access_token', accessToken);
 
             toast({
-                title: "Account created!",
-                description: "Welcome to ClientCare CRM.",
+                title: "Welcome!",
+                description: `Signed in as ${fbUser.name}`,
             });
-        } catch (error: any) {
-            toast({
-                title: "Sign up failed",
-                description: error.message,
-                variant: "destructive",
-            });
+
+            return fbUser;
+        } catch (error) {
+            console.error('Error fetching Facebook user:', error);
             throw error;
-        } finally {
-            setLoading(false);
         }
     };
 
-    const signIn = async (email: string, password: string) => {
+    const loginWithFacebook = async () => {
+        if (!fbLoaded || !window.FB) {
+            toast({
+                title: "Loading...",
+                description: "Facebook SDK is still loading. Please try again.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            window.FB.login(async (response: any) => {
+                if (response.authResponse) {
+                    try {
+                        await fetchFacebookUser(response.authResponse.accessToken);
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                } else {
+                    toast({
+                        title: "Login cancelled",
+                        description: "Facebook login was cancelled",
+                        variant: "destructive"
+                    });
+                    reject(new Error('Login cancelled'));
+                }
+            }, { scope: 'email,public_profile,pages_show_list,leads_retrieval' });
+        });
+    };
+
+    const loginWithEmail = async (email: string, password: string) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            // Simulate login - in production, connect to your auth provider
-            const loggedInUser: User = {
-                id: '1',
+            // Simple email/password auth (replace with your backend)
+            if (!email || !password) {
+                throw new Error('Email and password required');
+            }
+
+            const emailUser: User = {
+                id: Date.now().toString(),
                 email,
                 name: email.split('@')[0],
-                role: 'admin'
+                role: 'admin',
+                provider: 'email'
             };
-            setUser(loggedInUser);
-            localStorage.setItem('user', JSON.stringify(loggedInUser));
+
+            setUser(emailUser);
+            localStorage.setItem('user', JSON.stringify(emailUser));
 
             toast({
-                title: "Welcome back!",
+                title: "Welcome!",
                 description: "You have successfully logged in.",
             });
         } catch (error: any) {
@@ -89,30 +173,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signOut = async () => {
-        try {
-            setUser(null);
-            localStorage.removeItem('user');
-            toast({
-                title: "Logged out",
-                description: "You have been successfully logged out.",
-            });
-        } catch (error: any) {
-            toast({
-                title: "Logout failed",
-                description: error.message,
-                variant: "destructive",
-            });
+    const logout = () => {
+        // Facebook logout
+        if (window.FB) {
+            window.FB.logout();
         }
+
+        setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('fb_access_token');
+
+        toast({
+            title: "Logged out",
+            description: "You have been successfully logged out.",
+        });
     };
 
     const value = {
         user,
         loading,
         isAuthenticated: !!user,
-        signUp,
-        signIn,
-        signOut,
+        loginWithFacebook,
+        loginWithEmail,
+        logout,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
