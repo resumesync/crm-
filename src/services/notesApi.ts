@@ -1,78 +1,71 @@
 import { Note } from '@/types/crm';
 import { supabase } from '@/lib/supabase';
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
-
-// Get auth token from Supabase session
-const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    return {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-    };
-};
-
 export const notesApi = {
     // Get all notes for a lead
     getLeadNotes: async (leadId: string): Promise<Note[]> => {
-        const headers = await getAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/notes/lead/${leadId}`, {
-            headers,
-        });
+        const { data, error } = await supabase
+            .from('notes')
+            .select('*')
+            .eq('lead_id', leadId)
+            .order('created_at', { ascending: false });
 
-        if (!response.ok) {
+        if (error) {
+            console.error('Failed to fetch notes:', error);
             throw new Error('Failed to fetch notes');
         }
 
-        return response.json();
+        return data || [];
     },
 
     // Create a new note
     createNote: async (leadId: string, content: string): Promise<Note> => {
-        const headers = await getAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/notes`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
+        const { data: { user } } = await supabase.auth.getUser();
+
+        const { data, error } = await supabase
+            .from('notes')
+            .insert({
                 lead_id: leadId,
                 content,
-            }),
-        });
+                created_by: user?.id,
+            })
+            .select()
+            .single();
 
-        if (!response.ok) {
+        if (error) {
+            console.error('Failed to create note:', error);
             throw new Error('Failed to create note');
         }
 
-        return response.json();
+        return data;
     },
 
     // Update a note
     updateNote: async (noteId: string, content: string): Promise<Note> => {
-        const headers = await getAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/notes/${noteId}`, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({ content }),
-        });
+        const { data, error } = await supabase
+            .from('notes')
+            .update({ content, updated_at: new Date().toISOString() })
+            .eq('id', noteId)
+            .select()
+            .single();
 
-        if (!response.ok) {
+        if (error) {
+            console.error('Failed to update note:', error);
             throw new Error('Failed to update note');
         }
 
-        return response.json();
+        return data;
     },
 
     // Delete a note
     deleteNote: async (noteId: string): Promise<void> => {
-        const headers = await getAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/notes/${noteId}`, {
-            method: 'DELETE',
-            headers,
-        });
+        const { error } = await supabase
+            .from('notes')
+            .delete()
+            .eq('id', noteId);
 
-        if (!response.ok) {
+        if (error) {
+            console.error('Failed to delete note:', error);
             throw new Error('Failed to delete note');
         }
     },

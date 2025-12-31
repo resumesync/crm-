@@ -51,31 +51,28 @@ export default function Integrations() {
   const [testMessage, setTestMessage] = useState("Hello! This is a test message from ClientCare CRM.");
   const [isSendingTest, setIsSendingTest] = useState(false);
 
-  const [metaForms, setMetaForms] = useState([
+  const [metaForms] = useState([
     { id: "1", name: "Chemical Peel Inquiry", pageId: "123456789", status: "active", leads: 45 },
     { id: "2", name: "Hair Transplant Consultation", pageId: "123456789", status: "active", leads: 32 },
     { id: "3", name: "Skin Treatment Lead", pageId: "987654321", status: "paused", leads: 18 }
   ]);
 
-  const [googleForms, setGoogleForms] = useState([
-    { id: "1", name: "IVF Consultation", campaignId: "CMP-001", status: "active", leads: 28 },
-    { id: "2", name: "Gynecology Inquiry", campaignId: "CMP-002", status: "active", leads: 15 }
-  ]);
+  const webhookUrl = "https://your-api.com/webhooks/leads";
 
-  const webhookUrl = "https://api.abhivrudhi.com/webhooks/leads";
-  const whatsappWebhookUrl = `${window.location.origin.replace(':8080', ':8000')}/api/v1/whatsapp/webhook`;
-
-  const copyWebhook = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success("Webhook URL copied to clipboard");
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
   };
 
   const handleMetaConnect = () => {
     toast.success("Opening Meta Business Suite...");
+    // In production, this would open OAuth flow
+    window.open("https://business.facebook.com/", "_blank");
   };
 
   const handleGoogleConnect = () => {
     toast.success("Opening Google Ads connection...");
+    window.open("https://ads.google.com/", "_blank");
   };
 
   const syncLeads = (platform: string) => {
@@ -91,49 +88,50 @@ export default function Integrations() {
     setIsTestingConnection(true);
     setTestResult(null);
 
+    // Direct API call to Meta Graph API
     try {
-      const response = await fetch("http://localhost:8000/api/v1/whatsapp/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          access_token: whatsappAccessToken,
-          phone_number_id: whatsappPhoneNumberId
-        })
-      });
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${whatsappAccessToken}`
+          }
+        }
+      );
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.id) {
         setTestResult({
           success: true,
-          message: `Connected! Phone: ${data.phone_number}, Name: ${data.verified_name}`
+          message: `Connected! Phone: ${data.display_phone_number || 'N/A'}, Name: ${data.verified_name || 'N/A'}`
         });
         setWhatsappConfig(prev => ({ ...prev, connected: true }));
         toast.success("WhatsApp API connected successfully!");
       } else {
         setTestResult({
           success: false,
-          message: data.error || "Connection failed"
+          message: data.error?.message || "Connection failed"
         });
-        toast.error("Connection failed: " + (data.error || "Unknown error"));
+        toast.error("Connection failed: " + (data.error?.message || "Unknown error"));
       }
     } catch (error) {
-      setTestResult({ success: false, message: "Could not reach the server" });
-      toast.error("Could not connect to the backend server");
+      setTestResult({ success: false, message: "Could not reach the WhatsApp API" });
+      toast.error("Could not connect to WhatsApp API");
     } finally {
       setIsTestingConnection(false);
     }
   };
 
   const saveWhatsAppConfig = () => {
-    // In production, this would save to backend/database
-    toast.success("WhatsApp configuration saved! Please update your .env file with these credentials.");
-    console.log("Save these to .env:", {
-      WHATSAPP_ACCESS_TOKEN: whatsappAccessToken,
-      WHATSAPP_PHONE_NUMBER_ID: whatsappPhoneNumberId,
-      WHATSAPP_BUSINESS_ACCOUNT_ID: whatsappBusinessAccountId,
-      WHATSAPP_WEBHOOK_VERIFY_TOKEN: whatsappWebhookToken
-    });
+    // Save to localStorage for persistence
+    localStorage.setItem('whatsapp_config', JSON.stringify({
+      accessToken: whatsappAccessToken,
+      phoneNumberId: whatsappPhoneNumberId,
+      businessAccountId: whatsappBusinessAccountId,
+      webhookToken: whatsappWebhookToken
+    }));
+    toast.success("WhatsApp configuration saved to local storage!");
   };
 
   const sendTestMessage = async () => {
@@ -142,27 +140,42 @@ export default function Integrations() {
       return;
     }
 
+    if (!whatsappAccessToken || !whatsappPhoneNumberId) {
+      toast.error("Please configure WhatsApp API credentials first");
+      return;
+    }
+
     setIsSendingTest(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: testPhone.replace(/\D/g, ""), // Remove non-digits
-          message: testMessage
-        })
-      });
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${whatsappAccessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: testPhone.replace(/\D/g, ""),
+            type: "text",
+            text: { body: testMessage }
+          })
+        }
+      );
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.messages) {
         toast.success("Test message sent successfully!");
       } else {
-        toast.error("Failed to send: " + (data.error || data.detail || "Unknown error"));
+        toast.error("Failed to send: " + (data.error?.message || "Unknown error"));
       }
     } catch (error) {
-      toast.error("Could not send message. Make sure backend is running.");
+      toast.error("Could not send message. Check console for details.");
+      console.error("WhatsApp send error:", error);
     } finally {
       setIsSendingTest(false);
     }
@@ -234,7 +247,7 @@ export default function Integrations() {
                 <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
                   <h4 className="font-medium text-blue-600 mb-2">📋 Setup Instructions</h4>
                   <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Go to <a href="https://developers.facebook.com" target="_blank" className="text-blue-500 hover:underline">Meta for Developers</a> and create an app</li>
+                    <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Meta for Developers</a> and create an app</li>
                     <li>Add "WhatsApp" product to your app</li>
                     <li>Get your Access Token from the API Setup page</li>
                     <li>Copy your Phone Number ID from the same page</li>
@@ -330,18 +343,6 @@ export default function Integrations() {
                     Save Configuration
                   </Button>
                 </div>
-
-                {/* Webhook URL */}
-                <div className="space-y-2">
-                  <Label>Webhook URL (for receiving messages)</Label>
-                  <div className="flex gap-2">
-                    <Input value={whatsappWebhookUrl} readOnly className="bg-muted/50 font-mono text-sm" />
-                    <Button variant="outline" size="icon" onClick={() => copyWebhook(whatsappWebhookUrl)}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Add this URL in Meta Developer Console → WhatsApp → Configuration → Webhook</p>
-                </div>
               </CardContent>
             </Card>
 
@@ -388,30 +389,6 @@ export default function Integrations() {
                 {!whatsappConfig.connected && (
                   <p className="text-sm text-muted-foreground">Connect WhatsApp API first to send test messages</p>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Environment Variables Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Environment Variables</CardTitle>
-                <CardDescription>Add these to your backend .env file</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <pre className="rounded-lg bg-muted p-4 text-sm font-mono overflow-x-auto">
-                  {`# WhatsApp Business API Configuration
-WHATSAPP_ACCESS_TOKEN=${whatsappAccessToken || "your_access_token_here"}
-WHATSAPP_PHONE_NUMBER_ID=${whatsappPhoneNumberId || "your_phone_number_id_here"}
-WHATSAPP_BUSINESS_ACCOUNT_ID=${whatsappBusinessAccountId || "your_business_account_id_here"}
-WHATSAPP_WEBHOOK_VERIFY_TOKEN=${whatsappWebhookToken || "your_custom_verify_token"}`}
-                </pre>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => {
-                  navigator.clipboard.writeText(`WHATSAPP_ACCESS_TOKEN=${whatsappAccessToken}\nWHATSAPP_PHONE_NUMBER_ID=${whatsappPhoneNumberId}\nWHATSAPP_BUSINESS_ACCOUNT_ID=${whatsappBusinessAccountId}\nWHATSAPP_WEBHOOK_VERIFY_TOKEN=${whatsappWebhookToken}`);
-                  toast.success("Environment variables copied!");
-                }}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy to Clipboard
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -486,7 +463,7 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN=${whatsappWebhookToken || "your_custom_verify_toke
                       <Label>Webhook URL</Label>
                       <div className="flex gap-2">
                         <Input value={webhookUrl} readOnly className="bg-muted/50 font-mono text-sm" />
-                        <Button variant="outline" size="icon" onClick={() => copyWebhook(webhookUrl)}>
+                        <Button variant="outline" size="icon" onClick={() => copyToClipboard(webhookUrl, "Webhook URL")}>
                           <Copy className="h-4 w-4" />
                         </Button>
                       </div>

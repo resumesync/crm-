@@ -1,73 +1,79 @@
-# Welcome to your Lovable project
+# ClientCare CRM - React Frontend
 
-## Project info
+A modern CRM application built with React, TypeScript, and Tailwind CSS.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🚀 Quick Start
 
-## How can I edit this code?
+```bash
+# Install dependencies
+npm install
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at **http://localhost:8080**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🛠️ Tech Stack
 
-**Use GitHub Codespaces**
+- **React 18** - UI Framework
+- **TypeScript** - Type Safety
+- **Vite** - Build Tool & Dev Server
+- **Tailwind CSS** - Styling
+- **shadcn/ui** - UI Components
+- **Supabase** - Backend as a Service (Auth, Database)
+- **React Query** - Data Fetching
+- **React Router** - Routing
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📁 Project Structure
 
-## What technologies are used for this project?
+```
+src/
+├── components/     # Reusable UI components
+│   ├── layout/     # Sidebar, Header, Layout components
+│   ├── leads/      # Lead-related components
+│   └── ui/         # shadcn/ui components
+├── pages/          # Page components
+├── hooks/          # Custom React hooks
+├── lib/            # Utilities (Supabase client, utils)
+├── services/       # API service functions
+├── types/          # TypeScript type definitions
+└── data/           # Mock data
+```
 
-This project is built with:
+## 🔑 Features
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Dashboard** - Overview with stats and metrics
+- **Leads Management** - Add, view, edit, delete leads
+- **Campaigns** - Create and manage WhatsApp campaigns
+- **Messages** - Quick messaging templates
+- **Integrations** - WhatsApp Business API, Meta Leads, Google Leads
+- **Organization Settings** - Team management, billing
+- **Reviews & Birthdays** - Customer engagement features
 
-## How can I deploy this project?
+## ⚙️ Configuration
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Create a `.env` file in the root:
 
-## Can I connect a custom domain to my Lovable project?
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-Yes, you can!
+## 📦 Build for Production
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+npm run build
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Output will be in the `dist/` folder.
+
+## 🌐 Deployment
+
+- **Vercel** - Recommended for React apps
+- **Netlify** - Easy deployment with CI/CD
+- **GitHub Pages** - Free static hosting
+
+## 📄 License
+
+MIT
