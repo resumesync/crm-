@@ -1,5 +1,4 @@
-import { Note } from '@/types/crm';
-import { supabase } from '@/lib/supabase';
+import { Note } from '@/types/crm'
 
 export const notesApi = {
     // Get all notes for a lead

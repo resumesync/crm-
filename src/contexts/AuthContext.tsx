@@ -3,9 +3,17 @@ import authService from '@/services/authService';
 import { toast } from '@/hooks/use-toast';
 import type { ApiUser } from '@/types/api';
 
+interface User {
+    id: string;
+    email: string;
+    name?: string;
+    role?: 'admin' | 'agent';
+}
+
 interface AuthContextType {
     user: ApiUser | null;
     loading: boolean;
+    isAuthenticated: boolean;
     signUp: (email: string, password: string, metadata: any) => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     signOut: () => void;
@@ -13,6 +21,14 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Mock user for demo purposes
+const DEMO_USER: User = {
+    id: '1',
+    email: 'admin@example.com',
+    name: 'Admin User',
+    role: 'admin'
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<ApiUser | null>(null);
@@ -65,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 variant: "destructive",
             });
             throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -85,6 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 variant: "destructive",
             });
             throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -111,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const value = {
         user,
         loading,
+        isAuthenticated: !!user,
         signUp,
         signIn,
         signOut,

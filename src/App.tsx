@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import Index from "./pages/Index";
 import Leads from "./pages/Leads";
+import Followups from "./pages/Followups";
 import Messages from "./pages/Messages";
 import Campaigns from "./pages/Campaigns";
 import Reviews from "./pages/Reviews";
