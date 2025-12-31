@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 from config import settings
-from routers import leads, organizations, notes
+from routers import leads, organizations, notes, whatsapp
 
 # Create FastAPI app
 app = FastAPI(
@@ -54,6 +54,7 @@ async def root():
 app.include_router(leads.router, prefix="/api/v1")
 app.include_router(organizations.router, prefix="/api/v1")
 app.include_router(notes.router, prefix="/api/v1")
+app.include_router(whatsapp.router, prefix="/api/v1")
 
 # Error handlers
 @app.exception_handler(404)
