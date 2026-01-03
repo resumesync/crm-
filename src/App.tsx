@@ -3,7 +3,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+<<<<<<< HEAD
 import { AuthProvider } from "./contexts/AuthContext";
+=======
+import { AuthProvider } from "@/contexts/AuthContext";
+import Landing from "./pages/Landing";
+>>>>>>> main
 import Pricing from "./pages/Pricing";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -30,13 +35,21 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+<<<<<<< HEAD
             <Route path="/" element={<Index />} />
+=======
+            <Route path="/" element={<Landing />} />
+>>>>>>> main
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/leads" element={<Leads />} />
+<<<<<<< HEAD
+=======
+            <Route path="/followups" element={<Followups />} />
+>>>>>>> main
             <Route path="/messages" element={<Messages />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/reviews" element={<Reviews />} />
@@ -53,3 +66,4 @@ const App = () => (
 );
 
 export default App;
+
