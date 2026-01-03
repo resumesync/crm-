@@ -24,34 +24,33 @@ import {
 } from '@/components/ui/select';
 import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight, Loader2, Phone, Clock, CheckCircle2, X, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useLeads } from '@/hooks/useLeads';
 import { useCampaigns } from '@/hooks/useCampaigns';
+import { useDashboardStats, useDashboardRecentLeads } from '@/hooks/useDashboard';
+import { useFollowups, useCreateFollowup, useCompleteFollowup, useDeleteFollowup } from '@/hooks/useFollowups';
 import { formatDistanceToNow } from 'date-fns';
-
-interface Followup {
-    id: string;
-    leadName: string;
-    phone: string;
-    time: string;
-    type: string;
-    notes: string;
-    status: 'pending' | 'completed';
-}
-
-const initialFollowups: Followup[] = [
-    { id: '1', leadName: 'Priya Sharma', phone: '+91 98765 43210', time: '10:00 AM', type: 'Call', notes: 'Discuss hair transplant options', status: 'pending' },
-    { id: '2', leadName: 'Rahul Kumar', phone: '+91 87654 32109', time: '11:30 AM', type: 'WhatsApp', notes: 'Send treatment brochure', status: 'pending' },
-    { id: '3', leadName: 'Meera Reddy', phone: '+91 76543 21098', time: '2:00 PM', type: 'Call', notes: 'Follow up on consultation', status: 'completed' },
-    { id: '4', leadName: 'Arun Krishnan', phone: '+91 65432 10987', time: '4:30 PM', type: 'Meeting', notes: 'In-person consultation at clinic', status: 'pending' },
-];
+import { toast } from 'sonner';
+import type { Followup } from '@/services/followupsService';
 
 export default function Dashboard() {
-    // Fetch leads data for stats and recent leads
-    const { data: leadsData, isLoading: leadsLoading } = useLeads({ page: 1, per_page: 5 });
+    // Fetch dashboard data from database
+    const { data: statsData, isLoading: statsLoading, error: statsError } = useDashboardStats();
+    const { data: recentLeadsData, isLoading: recentLeadsLoading, error: recentLeadsError } = useDashboardRecentLeads(5);
     const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns({ limit: 50 });
 
-    // Follow-ups state
-    const [followups, setFollowups] = useState<Followup[]>(initialFollowups);
+    // Fetch follow-ups from database
+    const { data: followupsData, isLoading: followupsLoading } = useFollowups({ per_page: 50 });
+    const createFollowupMutation = useCreateFollowup();
+    const completeFollowupMutation = useCompleteFollowup();
+    const deleteFollowupMutation = useDeleteFollowup();
+
+    // Get today's follow-ups
+    const today = new Date().toISOString().split('T')[0];
+    const allFollowups = followupsData?.followups || [];
+    const todayFollowups = allFollowups.filter(f => f.scheduled_date === today);
+    const pendingFollowups = todayFollowups.filter(f => f.status === 'pending');
+    const completedFollowups = todayFollowups.filter(f => f.status === 'completed');
+
+    // Follow-ups form state
     const [isAddFollowupOpen, setIsAddFollowupOpen] = useState(false);
     const [newFollowup, setNewFollowup] = useState({
         leadName: '',
@@ -61,60 +60,80 @@ export default function Dashboard() {
         notes: '',
     });
 
-    // Derived state for pending and completed followups
-    const pendingFollowups = followups.filter(f => f.status === 'pending');
-    const completedFollowups = followups.filter(f => f.status === 'completed');
-
     // Handler functions
-    const markAsCompleted = (id: string) => {
-        setFollowups(prev =>
-            prev.map(f => f.id === id ? { ...f, status: 'completed' as const } : f)
-        );
+    const markAsCompleted = async (id: number) => {
+        try {
+            await completeFollowupMutation.mutateAsync(id);
+            toast.success('Follow-up marked as completed!');
+        } catch (error) {
+            toast.error('Failed to mark as completed');
+        }
     };
 
-    const removeFollowup = (id: string) => {
-        setFollowups(prev => prev.filter(f => f.id !== id));
+    const removeFollowup = async (id: number) => {
+        try {
+            await deleteFollowupMutation.mutateAsync(id);
+            toast.success('Follow-up removed');
+        } catch (error) {
+            toast.error('Failed to remove follow-up');
+        }
     };
 
-    const addFollowup = () => {
-        if (!newFollowup.leadName || !newFollowup.phone || !newFollowup.time) return;
+    const addFollowup = async () => {
+        if (!newFollowup.leadName || !newFollowup.phone || !newFollowup.time) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
 
-        const followup: Followup = {
-            id: Date.now().toString(),
-            leadName: newFollowup.leadName,
-            phone: newFollowup.phone,
-            time: newFollowup.time,
-            type: newFollowup.type,
-            notes: newFollowup.notes,
-            status: 'pending',
-        };
-
-        setFollowups(prev => [...prev, followup]);
-        setNewFollowup({ leadName: '', phone: '', time: '', type: 'Call', notes: '' });
-        setIsAddFollowupOpen(false);
+        try {
+            await createFollowupMutation.mutateAsync({
+                lead_name: newFollowup.leadName,
+                phone: newFollowup.phone,
+                scheduled_date: new Date().toISOString().split('T')[0], // Today
+                scheduled_time: newFollowup.time,
+                type: newFollowup.type,
+                notes: newFollowup.notes,
+            });
+            setNewFollowup({ leadName: '', phone: '', time: '', type: 'Call', notes: '' });
+            setIsAddFollowupOpen(false);
+            toast.success('Follow-up scheduled successfully!');
+        } catch (error) {
+            toast.error('Failed to create follow-up');
+        }
     };
 
-    const totalLeads = leadsData?.total || 0;
-    const recentLeads = leadsData?.leads || [];
+    // Extract data from hooks
+    const totalLeads = statsData?.total_leads || 0;
+    const leadsChangePercent = statsData?.leads_change_percent;
+    const recentLeads = recentLeadsData?.leads || [];
     const activeCampaigns = campaignsData?.campaigns?.filter(c =>
         c.status === 'in_progress' || c.status === 'scheduled'
     ).length || 0;
 
-    const isLoading = leadsLoading || campaignsLoading;
+    const isLoading = statsLoading || campaignsLoading;
+
+    // Format change percentage for display
+    const formatChange = (percent: number | null | undefined): string => {
+        if (percent === null || percent === undefined) return '-';
+        const sign = percent >= 0 ? '+' : '';
+        return `${sign}${percent}%`;
+    };
 
     const stats = [
         {
             name: 'Total Leads',
             value: isLoading ? '-' : totalLeads.toLocaleString(),
-            change: '+12%',
+            change: formatChange(leadsChangePercent),
+            changePositive: leadsChangePercent === null ? true : leadsChangePercent >= 0,
             icon: Users,
             color: 'text-blue-500',
             bg: 'bg-blue-500/10'
         },
         {
-            name: 'Messages Sent',
-            value: '-',
-            change: '+8%',
+            name: 'Leads This Month',
+            value: isLoading ? '-' : (statsData?.leads_this_month || 0).toLocaleString(),
+            change: formatChange(leadsChangePercent),
+            changePositive: leadsChangePercent === null ? true : leadsChangePercent >= 0,
             icon: MessageCircle,
             color: 'text-green-500',
             bg: 'bg-green-500/10'
@@ -122,15 +141,17 @@ export default function Dashboard() {
         {
             name: 'Active Campaigns',
             value: isLoading ? '-' : String(activeCampaigns),
-            change: '+2',
+            change: '-',
+            changePositive: true,
             icon: Megaphone,
             color: 'text-purple-500',
             bg: 'bg-purple-500/10'
         },
         {
-            name: 'Avg. Rating',
-            value: '4.8',
-            change: '+0.2',
+            name: 'Leads Today',
+            value: isLoading ? '-' : (statsData?.leads_today || 0).toLocaleString(),
+            change: '-',
+            changePositive: true,
             icon: Star,
             color: 'text-yellow-500',
             bg: 'bg-yellow-500/10'
@@ -225,7 +246,7 @@ export default function Dashboard() {
                             <Button variant="ghost" size="sm">View All</Button>
                         </Link>
                     </div>
-                    {leadsLoading ? (
+                    {recentLeadsLoading ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
@@ -246,17 +267,17 @@ export default function Dashboard() {
                                         </div>
                                         <div>
                                             <p className="font-medium">{lead.full_name || 'Unknown'}</p>
-                                            <p className="text-sm text-muted-foreground">{lead.service_interested || lead.lead_source}</p>
+                                            <p className="text-sm text-muted-foreground">{lead.lead_source || 'Unknown source'}</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${lead.status.toLowerCase() === 'new' || lead.status.toLowerCase() === 'new lead'
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : lead.status.toLowerCase() === 'contacted'
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : lead.status.toLowerCase() === 'converted'
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-gray-100 text-gray-700'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : lead.status.toLowerCase() === 'contacted'
+                                                ? 'bg-yellow-100 text-yellow-700'
+                                                : lead.status.toLowerCase() === 'converted'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-gray-100 text-gray-700'
                                             }`}>
                                             {lead.status}
                                         </span>
@@ -272,111 +293,111 @@ export default function Dashboard() {
                     )}
                 </Card>
 
-                    {/* Follow-ups Section */}
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-primary" />
-                                <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
-                                <Badge variant="secondary" className="ml-2">{pendingFollowups.length} pending</Badge>
-                            </div>
-                            <Button size="sm" onClick={() => setIsAddFollowupOpen(true)}>
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add
-                            </Button>
+                {/* Follow-ups Section */}
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
+                            <Badge variant="secondary" className="ml-2">{pendingFollowups.length} pending</Badge>
                         </div>
+                        <Button size="sm" onClick={() => setIsAddFollowupOpen(true)}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                        </Button>
+                    </div>
 
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                            {pendingFollowups.length === 0 && completedFollowups.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                    <p>No follow-ups scheduled for today</p>
-                                    <Button variant="outline" className="mt-4" onClick={() => setIsAddFollowupOpen(true)}>
-                                        Schedule Follow-up
-                                    </Button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Pending Follow-ups */}
-                                    {pendingFollowups.map((followup) => (
-                                        <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
-                                            <div className="flex items-start gap-3">
-                                                <div className={`p-2 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
-                                                        followup.type === 'WhatsApp' ? 'bg-green-500/10' :
-                                                            'bg-purple-500/10'
-                                                    }`}>
-                                                    {followup.type === 'Call' ? (
-                                                        <Phone className={`h-4 w-4 text-blue-500`} />
-                                                    ) : followup.type === 'WhatsApp' ? (
-                                                        <MessageCircle className={`h-4 w-4 text-green-500`} />
-                                                    ) : (
-                                                        <Users className={`h-4 w-4 text-purple-500`} />
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium">{followup.leadName}</p>
-                                                    <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">{followup.notes}</p>
-                                                </div>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {pendingFollowups.length === 0 && completedFollowups.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                <p>No follow-ups scheduled for today</p>
+                                <Button variant="outline" className="mt-4" onClick={() => setIsAddFollowupOpen(true)}>
+                                    Schedule Follow-up
+                                </Button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Pending Follow-ups */}
+                                {pendingFollowups.map((followup) => (
+                                    <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                                        <div className="flex items-start gap-3">
+                                            <div className={`p-2 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
+                                                followup.type === 'WhatsApp' ? 'bg-green-500/10' :
+                                                    'bg-purple-500/10'
+                                                }`}>
+                                                {followup.type === 'Call' ? (
+                                                    <Phone className={`h-4 w-4 text-blue-500`} />
+                                                ) : followup.type === 'WhatsApp' ? (
+                                                    <MessageCircle className={`h-4 w-4 text-green-500`} />
+                                                ) : (
+                                                    <Users className={`h-4 w-4 text-purple-500`} />
+                                                )}
                                             </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <div className="flex items-center gap-1 text-sm">
-                                                    <Clock className="h-3 w-3" />
-                                                    <span className="font-medium">{followup.time}</span>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                        onClick={() => markAsCompleted(followup.id)}
-                                                    >
-                                                        <CheckCircle2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                        onClick={() => removeFollowup(followup.id)}
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                            <div>
+                                                <p className="font-medium">{followup.lead_name}</p>
+                                                <p className="text-sm text-muted-foreground">{followup.phone || '-'}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">{followup.notes || ''}</p>
                                             </div>
                                         </div>
-                                    ))}
-
-                                    {/* Completed Follow-ups */}
-                                    {completedFollowups.length > 0 && (
-                                        <>
-                                            <div className="flex items-center gap-2 pt-2">
-                                                <div className="flex-1 h-px bg-border"></div>
-                                                <span className="text-xs text-muted-foreground">Completed</span>
-                                                <div className="flex-1 h-px bg-border"></div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <div className="flex items-center gap-1 text-sm">
+                                                <Clock className="h-3 w-3" />
+                                                <span className="font-medium">{followup.scheduled_time}</span>
                                             </div>
-                                            {completedFollowups.map((followup) => (
-                                                <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-muted/30 opacity-60">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="p-2 rounded-lg bg-green-500/10">
-                                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium line-through">{followup.leadName}</p>
-                                                            <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                                                        </div>
-                                                    </div>
-                                                    <span className="text-sm text-muted-foreground">{followup.time}</span>
-                                                </div>
-                                            ))}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </Card>
-                </div>
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                    onClick={() => markAsCompleted(followup.id)}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => removeFollowup(followup.id)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
 
-            {/* Add Follow-up Dialog */ }
+                                {/* Completed Follow-ups */}
+                                {completedFollowups.length > 0 && (
+                                    <>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <div className="flex-1 h-px bg-border"></div>
+                                            <span className="text-xs text-muted-foreground">Completed</span>
+                                            <div className="flex-1 h-px bg-border"></div>
+                                        </div>
+                                        {completedFollowups.map((followup) => (
+                                            <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-muted/30 opacity-60">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="p-2 rounded-lg bg-green-500/10">
+                                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium line-through">{followup.lead_name}</p>
+                                                        <p className="text-sm text-muted-foreground">{followup.phone || '-'}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-sm text-muted-foreground">{followup.scheduled_time}</span>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </Card>
+            </div>
+
+            {/* Add Follow-up Dialog */}
             <Dialog open={isAddFollowupOpen} onOpenChange={setIsAddFollowupOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>

@@ -1,23 +1,15 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-<<<<<<< HEAD
-import { BarChart3 } from 'lucide-react';
-=======
 import { BarChart3, Loader2 } from 'lucide-react';
->>>>>>> main
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
     const navigate = useNavigate();
-<<<<<<< HEAD
-    const { signIn } = useAuth();
-=======
     const { loginWithFacebook, loginWithEmail } = useAuth();
 
->>>>>>> main
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -30,16 +22,6 @@ export default function Login() {
         setIsLoading(true);
 
         try {
-<<<<<<< HEAD
-            await signIn(formData.email, formData.password);
-            // Navigate to dashboard after successful login
-            navigate('/dashboard');
-        } catch (error) {
-            // Error handled by AuthContext
-        } finally {
-            setIsLoading(false);
-        }
-=======
             await loginWithEmail(formData.email, formData.password);
             navigate('/');
         } catch (error) {
@@ -59,7 +41,6 @@ export default function Login() {
         } finally {
             setIsFacebookLoading(false);
         }
->>>>>>> main
     };
 
     return (

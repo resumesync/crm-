@@ -14,7 +14,7 @@ export default function Reviews() {
 
   // Fetch converted leads from API
   const { data, isLoading, isError, refetch } = useLeads({
-    status: 'converted',
+    status: 'Converted',
     page: 1,
     per_page: 20
   });

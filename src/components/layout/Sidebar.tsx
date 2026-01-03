@@ -36,7 +36,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
 
   // Get user role from backend user data
   // Admin if: is_superuser OR role_name is 'admin' OR has role_id (for now, any role = admin)
@@ -48,8 +48,7 @@ export function Sidebar() {
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   const handleLogout = () => {
-    signOut();
-    navigate('/login');
+    logout();
   };
 
   return (

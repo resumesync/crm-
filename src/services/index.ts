@@ -13,6 +13,7 @@ export { default as statusesService } from './statusesService';
 export { default as clinicsService } from './clinicsService';
 export { default as authService } from './authService';
 export { default as notesService, notesApi } from './notesService';
+export { default as dashboardService } from './dashboardService';
 
 // Re-export types
 export type * from '@/types/api';

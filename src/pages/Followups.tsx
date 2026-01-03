@@ -6,25 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Phone, MessageCircle, Users, CheckCircle2, Plus, X, Search, Filter } from 'lucide-react';
+import { Calendar, Clock, Phone, MessageCircle, Users, CheckCircle2, Plus, X, Search, Filter, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-
-const initialFollowups = [
-    { id: '1', leadName: 'Priya Sharma', phone: '+91 98765 43210', date: '2024-12-31', time: '10:00 AM', type: 'Call', notes: 'Discuss hair transplant options and pricing', status: 'pending', service: 'Hair Transplant' },
-    { id: '2', leadName: 'Rahul Kumar', phone: '+91 87654 32109', date: '2024-12-31', time: '11:30 AM', type: 'WhatsApp', notes: 'Send treatment brochure and before/after photos', status: 'pending', service: 'Skin Treatment' },
-    { id: '3', leadName: 'Meera Reddy', phone: '+91 76543 21098', date: '2024-12-31', time: '2:00 PM', type: 'Call', notes: 'Follow up on consultation', status: 'completed', service: 'Chemical Peel' },
-    { id: '4', leadName: 'Arun Krishnan', phone: '+91 65432 10987', date: '2024-12-31', time: '4:30 PM', type: 'Meeting', notes: 'In-person consultation at clinic', status: 'pending', service: 'Acne Treatment' },
-    { id: '5', leadName: 'Sneha Patel', phone: '+91 54321 09876', date: '2025-01-01', time: '9:00 AM', type: 'Call', notes: 'New year discount offer discussion', status: 'pending', service: 'Skin Brightening' },
-    { id: '6', leadName: 'Vikram Das', phone: '+91 43210 98765', date: '2025-01-01', time: '3:00 PM', type: 'WhatsApp', notes: 'Send appointment confirmation', status: 'pending', service: 'Hair Transplant' },
-    { id: '7', leadName: 'Anita Joshi', phone: '+91 32109 87654', date: '2024-12-30', time: '5:00 PM', type: 'Call', notes: 'Final pricing discussion', status: 'completed', service: 'IVF Consultation' },
-];
+import { useFollowups, useCreateFollowup, useCompleteFollowup, useDeleteFollowup } from '@/hooks/useFollowups';
+import type { Followup } from '@/services/followupsService';
 
 export default function Followups() {
-    const [followups, setFollowups] = useState(initialFollowups);
+    // Fetch follow-ups from database
+    const { data, isLoading, isError, refetch } = useFollowups({ per_page: 200 });
+    const createFollowupMutation = useCreateFollowup();
+    const completeFollowupMutation = useCompleteFollowup();
+    const deleteFollowupMutation = useDeleteFollowup();
+
+    const followups = data?.followups || [];
+
     const [isAddFollowupOpen, setIsAddFollowupOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('all');
@@ -38,61 +37,67 @@ export default function Followups() {
         service: ''
     });
 
-    const markAsCompleted = (id: string) => {
-        setFollowups(prev => prev.map(f =>
-            f.id === id ? { ...f, status: 'completed' } : f
-        ));
-        toast.success('Follow-up marked as completed!');
+    const markAsCompleted = async (id: number) => {
+        try {
+            await completeFollowupMutation.mutateAsync(id);
+            toast.success('Follow-up marked as completed!');
+        } catch (error) {
+            toast.error('Failed to mark as completed');
+        }
     };
 
-    const removeFollowup = (id: string) => {
-        setFollowups(prev => prev.filter(f => f.id !== id));
-        toast.success('Follow-up removed');
+    const removeFollowup = async (id: number) => {
+        try {
+            await deleteFollowupMutation.mutateAsync(id);
+            toast.success('Follow-up removed');
+        } catch (error) {
+            toast.error('Failed to remove follow-up');
+        }
     };
 
-    const addFollowup = () => {
+    const addFollowup = async () => {
         if (!newFollowup.leadName || !newFollowup.phone || !newFollowup.time || !newFollowup.date) {
             toast.error('Please fill in required fields');
             return;
         }
 
-        const followup = {
-            id: Date.now().toString(),
-            leadName: newFollowup.leadName,
-            phone: newFollowup.phone,
-            date: newFollowup.date,
-            time: newFollowup.time,
-            type: newFollowup.type,
-            notes: newFollowup.notes,
-            service: newFollowup.service,
-            status: 'pending'
-        };
-
-        setFollowups(prev => [...prev, followup]);
-        setNewFollowup({ leadName: '', phone: '', date: '', time: '', type: 'Call', notes: '', service: '' });
-        setIsAddFollowupOpen(false);
-        toast.success('Follow-up scheduled successfully!');
+        try {
+            await createFollowupMutation.mutateAsync({
+                lead_name: newFollowup.leadName,
+                phone: newFollowup.phone,
+                scheduled_date: newFollowup.date,
+                scheduled_time: newFollowup.time,
+                type: newFollowup.type,
+                notes: newFollowup.notes,
+                service: newFollowup.service,
+            });
+            setNewFollowup({ leadName: '', phone: '', date: '', time: '', type: 'Call', notes: '', service: '' });
+            setIsAddFollowupOpen(false);
+            toast.success('Follow-up scheduled successfully!');
+        } catch (error) {
+            toast.error('Failed to create follow-up');
+        }
     };
 
     const today = new Date().toISOString().split('T')[0];
-    const todayFollowups = followups.filter(f => f.date === today || f.date === '2024-12-31');
-    const upcomingFollowups = followups.filter(f => f.date > today && f.date !== '2024-12-31');
-    const pastFollowups = followups.filter(f => f.date < today && f.date !== '2024-12-31');
+    const todayFollowups = followups.filter(f => f.scheduled_date === today);
+    const upcomingFollowups = followups.filter(f => f.scheduled_date > today);
+    const pastFollowups = followups.filter(f => f.scheduled_date < today);
 
     const pendingCount = followups.filter(f => f.status === 'pending').length;
     const completedCount = followups.filter(f => f.status === 'completed').length;
 
-    const filteredFollowups = (list: typeof followups) => {
+    const filteredFollowups = (list: Followup[]) => {
         return list.filter(f => {
-            const matchesSearch = f.leadName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                f.phone.includes(searchQuery) ||
-                f.service.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = f.lead_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (f.phone || '').includes(searchQuery) ||
+                (f.service || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesType = filterType === 'all' || f.type === filterType;
             return matchesSearch && matchesType;
         });
     };
 
-    const FollowupCard = ({ followup }: { followup: typeof followups[0] }) => (
+    const FollowupCard = ({ followup }: { followup: Followup }) => (
         <div className={`flex items-start justify-between p-4 rounded-lg border ${followup.status === 'completed' ? 'border-border bg-muted/30 opacity-70' : 'border-border bg-card hover:bg-accent/50'} transition-colors`}>
             <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
@@ -110,20 +115,20 @@ export default function Followups() {
                 <div className="space-y-1">
                     <div className="flex items-center gap-2">
                         <p className={`font-semibold ${followup.status === 'completed' ? 'line-through' : ''}`}>
-                            {followup.leadName}
+                            {followup.lead_name}
                         </p>
-                        <Badge variant="secondary" className="text-xs">{followup.service}</Badge>
+                        <Badge variant="secondary" className="text-xs">{followup.service || 'N/A'}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                    <p className="text-sm text-muted-foreground">{followup.notes}</p>
+                    <p className="text-sm text-muted-foreground">{followup.phone || '-'}</p>
+                    <p className="text-sm text-muted-foreground">{followup.notes || ''}</p>
                     <div className="flex items-center gap-3 pt-1">
                         <Badge variant="outline" className="text-xs">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(followup.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            {new Date(followup.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </Badge>
                         <Badge variant="outline" className="text-xs">
                             <Clock className="h-3 w-3 mr-1" />
-                            {followup.time}
+                            {followup.scheduled_time}
                         </Badge>
                         <Badge variant={followup.type === 'Call' ? 'default' : followup.type === 'WhatsApp' ? 'secondary' : 'outline'} className="text-xs">
                             {followup.type}

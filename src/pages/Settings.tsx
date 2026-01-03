@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
@@ -21,42 +21,54 @@ import {
   Check,
   X,
   GitBranch,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useGroups, useCreateGroup, useUpdateGroup } from '@/hooks/useGroups';
+import { useStatuses, useCreateStatus } from '@/hooks/useStatuses';
+import { useUsers, useDeleteUser } from '@/hooks/useUsers';
+import groupsService from '@/services/groupsService';
+import statusesService from '@/services/statusesService';
 
-// Placeholder users until API endpoint is added
-const teamMembers = [
-  { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'admin' as const },
-  { id: '2', name: 'Manager User', email: 'manager@example.com', role: 'manager' as const },
-];
-
-const roleColors = {
+const roleColors: Record<string, string> = {
   admin: 'bg-primary text-primary-foreground',
   manager: 'bg-status-meeting text-primary-foreground',
   agent: 'bg-secondary text-secondary-foreground',
 };
 
-const defaultServiceGroups = [
-  { id: '1', name: 'Chemical Peel', color: 'bg-pink-500' },
-  { id: '2', name: 'Hair Transplantation', color: 'bg-purple-500' },
-  { id: '3', name: 'Acne Treatment', color: 'bg-blue-500' },
-  { id: '4', name: 'Skin Brightening', color: 'bg-amber-500' },
-  { id: '5', name: 'IVF / Gynecology', color: 'bg-rose-500' },
-];
+// Color mapping for display
+const hexToTailwind: Record<string, string> = {
+  '#3B82F6': 'bg-blue-500',
+  '#8B5CF6': 'bg-purple-500',
+  '#F59E0B': 'bg-amber-500',
+  '#EC4899': 'bg-pink-500',
+  '#EF4444': 'bg-red-500',
+  '#10B981': 'bg-green-500',
+  '#6B7280': 'bg-gray-500',
+  '#9CA3AF': 'bg-gray-400',
+  '#06B6D4': 'bg-cyan-500',
+  '#6366F1': 'bg-indigo-500',
+  '#14B8A6': 'bg-teal-500',
+  '#F97316': 'bg-orange-500',
+};
 
-const defaultLeadStatuses = [
-  { id: '1', name: 'New Lead', color: 'bg-blue-500' },
-  { id: '2', name: 'Contacted', color: 'bg-cyan-500' },
-  { id: '3', name: 'Meeting Booked', color: 'bg-purple-500' },
-  { id: '4', name: 'Proposal Sent', color: 'bg-indigo-500' },
-  { id: '5', name: 'Follow-up Required', color: 'bg-amber-500' },
-  { id: '6', name: 'Converted', color: 'bg-green-500' },
-  { id: '7', name: 'Not Interested', color: 'bg-red-500' },
-  { id: '8', name: 'No Response', color: 'bg-gray-500' },
-];
+const tailwindToHex: Record<string, string> = {
+  'bg-pink-500': '#EC4899',
+  'bg-purple-500': '#8B5CF6',
+  'bg-blue-500': '#3B82F6',
+  'bg-amber-500': '#F59E0B',
+  'bg-rose-500': '#F43F5E',
+  'bg-green-500': '#10B981',
+  'bg-cyan-500': '#06B6D4',
+  'bg-orange-500': '#F97316',
+  'bg-indigo-500': '#6366F1',
+  'bg-teal-500': '#14B8A6',
+  'bg-red-500': '#EF4444',
+  'bg-gray-500': '#6B7280',
+};
 
 const colorOptions = [
   'bg-pink-500',
@@ -74,8 +86,37 @@ const colorOptions = [
 ];
 
 export default function Settings() {
+  // Fetch data from database
+  const { data: groupsData, isLoading: groupsLoading, refetch: refetchGroups } = useGroups();
+  const { data: statusesData, isLoading: statusesLoading, refetch: refetchStatuses } = useStatuses();
+  const { data: usersData, isLoading: usersLoading, refetch: refetchUsers } = useUsers();
+  const createGroupMutation = useCreateGroup();
+  const updateGroupMutation = useUpdateGroup();
+  const createStatusMutation = useCreateStatus();
+  const deleteUserMutation = useDeleteUser();
+
+  // Transform API data to display format
+  const teamMembers = (usersData?.users || []).map(u => ({
+    id: String(u.id),
+    name: u.full_name || u.username,
+    email: u.email,
+    role: (u.role_name || 'agent') as 'admin' | 'manager' | 'agent',
+  }));
+
+  // Transform API data to display format
+  const serviceGroups = (groupsData || []).map(g => ({
+    id: String(g.id),
+    name: g.name,
+    color: 'bg-purple-500', // Default color since API doesn't store colors
+  }));
+
+  const leadStatuses = (statusesData || []).map(s => ({
+    id: String(s.id),
+    name: s.name,
+    color: hexToTailwind[s.color] || 'bg-blue-500',
+  }));
+
   // Service Groups state
-  const [serviceGroups, setServiceGroups] = useState(defaultServiceGroups);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupColor, setNewGroupColor] = useState(colorOptions[0]);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -83,7 +124,6 @@ export default function Settings() {
   const [editGroupColor, setEditGroupColor] = useState('');
 
   // Lead Statuses state
-  const [leadStatuses, setLeadStatuses] = useState(defaultLeadStatuses);
   const [newStatusName, setNewStatusName] = useState('');
   const [newStatusColor, setNewStatusColor] = useState(colorOptions[0]);
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
@@ -91,25 +131,33 @@ export default function Settings() {
   const [editStatusColor, setEditStatusColor] = useState('');
 
   // Service Group handlers
-  const handleAddGroup = () => {
+  const handleAddGroup = async () => {
     if (!newGroupName.trim()) {
       toast.error('Please enter a group name');
       return;
     }
-    const newGroup = {
-      id: Date.now().toString(),
-      name: newGroupName.trim(),
-      color: newGroupColor,
-    };
-    setServiceGroups([...serviceGroups, newGroup]);
-    setNewGroupName('');
-    setNewGroupColor(colorOptions[0]);
-    toast.success('Service group created');
+    try {
+      await createGroupMutation.mutateAsync({
+        name: newGroupName.trim(),
+        description: '',
+        is_custom: true,
+      });
+      setNewGroupName('');
+      setNewGroupColor(colorOptions[0]);
+      toast.success('Service group created');
+    } catch (error) {
+      toast.error('Failed to create group');
+    }
   };
 
-  const handleDeleteGroup = (id: string) => {
-    setServiceGroups(serviceGroups.filter((g) => g.id !== id));
-    toast.success('Service group deleted');
+  const handleDeleteGroup = async (id: string) => {
+    try {
+      await groupsService.deleteGroup(parseInt(id));
+      refetchGroups();
+      toast.success('Service group deleted');
+    } catch (error) {
+      toast.error('Failed to delete group');
+    }
   };
 
   const handleStartEditGroup = (group: typeof serviceGroups[0]) => {
@@ -118,18 +166,21 @@ export default function Settings() {
     setEditGroupColor(group.color);
   };
 
-  const handleSaveEditGroup = () => {
+  const handleSaveEditGroup = async () => {
     if (!editGroupName.trim()) {
       toast.error('Please enter a group name');
       return;
     }
-    setServiceGroups(
-      serviceGroups.map((g) =>
-        g.id === editingGroupId ? { ...g, name: editGroupName.trim(), color: editGroupColor } : g
-      )
-    );
-    setEditingGroupId(null);
-    toast.success('Service group updated');
+    try {
+      await updateGroupMutation.mutateAsync({
+        id: parseInt(editingGroupId!),
+        data: { name: editGroupName.trim() },
+      });
+      setEditingGroupId(null);
+      toast.success('Service group updated');
+    } catch (error) {
+      toast.error('Failed to update group');
+    }
   };
 
   const handleCancelEditGroup = () => {
@@ -137,25 +188,33 @@ export default function Settings() {
   };
 
   // Lead Status handlers
-  const handleAddStatus = () => {
+  const handleAddStatus = async () => {
     if (!newStatusName.trim()) {
       toast.error('Please enter a status name');
       return;
     }
-    const newStatus = {
-      id: Date.now().toString(),
-      name: newStatusName.trim(),
-      color: newStatusColor,
-    };
-    setLeadStatuses([...leadStatuses, newStatus]);
-    setNewStatusName('');
-    setNewStatusColor(colorOptions[0]);
-    toast.success('Lead status created');
+    try {
+      await createStatusMutation.mutateAsync({
+        name: newStatusName.trim(),
+        color: tailwindToHex[newStatusColor] || '#3B82F6',
+        display_order: leadStatuses.length + 1,
+      });
+      setNewStatusName('');
+      setNewStatusColor(colorOptions[0]);
+      toast.success('Lead status created');
+    } catch (error) {
+      toast.error('Failed to create status');
+    }
   };
 
-  const handleDeleteStatus = (id: string) => {
-    setLeadStatuses(leadStatuses.filter((s) => s.id !== id));
-    toast.success('Lead status deleted');
+  const handleDeleteStatus = async (id: string) => {
+    try {
+      await statusesService.deleteStatus(parseInt(id));
+      refetchStatuses();
+      toast.success('Lead status deleted');
+    } catch (error) {
+      toast.error('Failed to delete status');
+    }
   };
 
   const handleStartEditStatus = (status: typeof leadStatuses[0]) => {
@@ -164,18 +223,22 @@ export default function Settings() {
     setEditStatusColor(status.color);
   };
 
-  const handleSaveEditStatus = () => {
+  const handleSaveEditStatus = async () => {
     if (!editStatusName.trim()) {
       toast.error('Please enter a status name');
       return;
     }
-    setLeadStatuses(
-      leadStatuses.map((s) =>
-        s.id === editingStatusId ? { ...s, name: editStatusName.trim(), color: editStatusColor } : s
-      )
-    );
-    setEditingStatusId(null);
-    toast.success('Lead status updated');
+    try {
+      await statusesService.updateStatus(parseInt(editingStatusId!), {
+        name: editStatusName.trim(),
+        color: tailwindToHex[editStatusColor] || '#3B82F6',
+      });
+      refetchStatuses();
+      setEditingStatusId(null);
+      toast.success('Lead status updated');
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
   };
 
   const handleCancelEditStatus = () => {
@@ -524,7 +587,21 @@ export default function Settings() {
                     <Badge className={cn('capitalize', roleColors[user.role])}>
                       {user.role}
                     </Badge>
-                    <Button variant="ghost" size="icon-sm" className="text-destructive">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      onClick={async () => {
+                        if (confirm(`Are you sure you want to deactivate ${user.name}?`)) {
+                          try {
+                            await deleteUserMutation.mutateAsync(parseInt(user.id));
+                            toast.success(`${user.name} has been deactivated`);
+                          } catch (error) {
+                            toast.error('Failed to deactivate user');
+                          }
+                        }
+                      }}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

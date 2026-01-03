@@ -26,6 +26,8 @@ export function useCampaigns(filters: CampaignFilters = {}) {
         queryKey: campaignsKeys.list(filters),
         queryFn: () => campaignsService.getCampaigns(filters),
         staleTime: 30000,
+        retry: 1,
+        retryDelay: 1000,
     });
 }
 

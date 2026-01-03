@@ -1,36 +1,91 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Users, CreditCard, Upload, Mail, Trash2, Crown, Shield, Settings, Sparkles, Check, Download, ChevronRight } from 'lucide-react';
+import { Building2, Users, CreditCard, Upload, Mail, Trash2, Crown, Shield, Settings, Sparkles, Check, Download, ChevronRight, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { useOrganization, useUpdateOrganization } from '@/hooks/useOrganization';
+import { useUsers } from '@/hooks/useUsers';
 
 export default function OrganizationSettings() {
+    // Fetch organization settings from API
+    const { data: orgSettings, isLoading: orgLoading, refetch: refetchOrg } = useOrganization();
+    const updateOrgMutation = useUpdateOrganization();
+
+    // Fetch team members from API
+    const { data: usersData, isLoading: usersLoading } = useUsers();
+
     const [orgData, setOrgData] = useState({
-        name: 'Acme Medical Center',
-        slug: 'acme-medical',
-        email: 'admin@acmemedical.com',
-        phone: '+91 98765 43210',
-        address: '123 Main St, Mumbai, Maharashtra'
+        name: '',
+        slug: '',
+        email: '',
+        phone: '',
+        address: ''
     });
 
-    const [teamMembers] = useState([
-        { id: '1', name: 'Dr. Rajesh Kumar', email: 'rajesh@acme.com', role: 'owner', status: 'active', avatar: 'RK' },
-        { id: '2', name: 'Priya Sharma', email: 'priya@acme.com', role: 'admin', status: 'active', avatar: 'PS' },
-        { id: '3', name: 'Amit Patel', email: 'amit@acme.com', role: 'agent', status: 'pending', avatar: 'AP' }
-    ]);
+    // Load organization data when fetched
+    useEffect(() => {
+        if (orgSettings) {
+            setOrgData({
+                name: orgSettings.agency_name || '',
+                slug: orgSettings.agency_name?.toLowerCase().replace(/\s+/g, '-') || '',
+                email: orgSettings.contact_email || '',
+                phone: orgSettings.contact_phone || '',
+                address: orgSettings.address || ''
+            });
+        }
+    }, [orgSettings]);
 
-    const handleSave = () => {
-        toast({
-            title: "Settings Saved",
-            description: "Your organization settings have been updated successfully.",
-        });
+    // Transform users data for display
+    const teamMembers = (usersData?.users || []).map((u, idx) => ({
+        id: String(u.id),
+        name: u.full_name || u.username,
+        email: u.email,
+        role: u.role_name || 'agent',
+        status: u.is_active ? 'active' : 'inactive',
+        avatar: (u.full_name || u.username).split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    }));
+
+    const handleSave = async () => {
+        try {
+            await updateOrgMutation.mutateAsync({
+                agency_name: orgData.name,
+                contact_email: orgData.email,
+                contact_phone: orgData.phone,
+                address: orgData.address,
+                gmb_review_link: orgSettings?.gmb_review_link || '',
+                logo_url: orgSettings?.logo_url || '',
+                whatsapp_number: orgSettings?.whatsapp_number || '',
+                timezone: orgSettings?.timezone || 'Asia/Kolkata'
+            });
+            toast({
+                title: "Settings Saved",
+                description: "Your organization settings have been updated successfully.",
+            });
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to save organization settings.",
+                variant: "destructive"
+            });
+        }
     };
+
+    if (orgLoading) {
+        return (
+            <div className="flex min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+                <Sidebar />
+                <main className="ml-64 flex-1 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
