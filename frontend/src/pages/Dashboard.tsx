@@ -68,8 +68,6 @@ interface DashboardStats {
 
 export default function Dashboard() {
     const { user } = useAuth();
-    const [realStats, setRealStats] = useState<DashboardStats | null>(null);
-    const [isLoadingStats, setIsLoadingStats] = useState(true);
     const [followups, setFollowups] = useState<any[]>([]);
     const [isAddFollowupOpen, setIsAddFollowupOpen] = useState(false);
     const [newFollowup, setNewFollowup] = useState({
@@ -81,17 +79,6 @@ export default function Dashboard() {
     });
 
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const data = await apiFetch('/api/dashboard/stats');
-                setRealStats(data);
-            } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
-            } finally {
-                setIsLoadingStats(false);
-            }
-        };
-
         const fetchFollowups = async () => {
             try {
                 const today = new Date().toISOString().split('T')[0];
@@ -116,7 +103,6 @@ export default function Dashboard() {
             }
         };
 
-        fetchStats();
         fetchFollowups();
     }, []);
 
@@ -174,7 +160,7 @@ export default function Dashboard() {
             };
 
             setFollowups(prev => [...prev, followup]);
-            setNewFollowup({ leadName: '', phone: '', date: '', time: '', type: 'Call', notes: '' });
+            setNewFollowup({ leadName: '', phone: '', time: '', type: 'Call', notes: '' });
             setIsAddFollowupOpen(false);
             toast.success('Follow-up scheduled successfully!');
         } catch (error) {
@@ -259,7 +245,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.total_leads || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.total_leads || 0}</p>
                             <p className="text-sm text-muted-foreground">Total Leads</p>
                         </div>
                     </Card>
@@ -271,7 +257,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.today_leads || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.leads_today || 0}</p>
                             <p className="text-sm text-muted-foreground">Today's Leads</p>
                         </div>
                     </Card>
@@ -283,7 +269,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.source_distribution?.['google'] || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.source_distribution?.['google'] || 0}</p>
                             <p className="text-sm text-muted-foreground">Google Ads/Sheets</p>
                         </div>
                     </Card>
@@ -295,7 +281,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.source_distribution?.['meta'] || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.source_distribution?.['meta'] || 0}</p>
                             <p className="text-sm text-muted-foreground">Meta (FB/IG)</p>
                         </div>
                     </Card>
@@ -378,20 +364,20 @@ export default function Dashboard() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {realStats?.recent_leads.length === 0 ? (
+                            {recentLeads.length === 0 ? (
                                 <p className="text-center py-4 text-muted-foreground">No leads found</p>
                             ) : (
-                                realStats?.recent_leads.map((lead, index) => (
+                                recentLeads.map((lead, index) => (
                                     <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                                                 <span className="text-sm font-medium text-primary">
-                                                    {lead.name?.split(' ').map(n => n[0]).join('') || 'L'}
+                                                    {lead.full_name?.split(' ').map(n => n[0]).join('') || 'L'}
                                                 </span>
                                             </div>
                                             <div>
-                                                <p className="font-medium">{lead.name || 'Anonymous'}</p>
-                                                <p className="text-sm text-muted-foreground font-mono">{lead.phone}</p>
+                                                <p className="font-medium">{lead.full_name || 'Anonymous'}</p>
+                                                <p className="text-sm text-muted-foreground font-mono">{lead.phone_number}</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -402,7 +388,7 @@ export default function Dashboard() {
                                                 {lead.status}
                                             </span>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {lead.source === 'google' ? 'Google' : 'Meta'}
+                                                {lead.lead_source === 'google' ? 'Google' : 'Meta'}
                                             </p>
                                         </div>
                                     </div>
@@ -454,7 +440,7 @@ export default function Dashboard() {
                                                 )}
                                             </div>
                                             <div>
-                                                <p className="font-medium">{followup.lead_name}</p>
+                                                <p className="font-medium">{followup.leadName}</p>
                                                 <p className="text-sm text-muted-foreground">{followup.phone}</p>
                                                 <p className="text-xs text-muted-foreground mt-1">{followup.notes}</p>
                                             </div>
@@ -462,7 +448,7 @@ export default function Dashboard() {
                                         <div className="flex flex-col items-end gap-2">
                                             <div className="flex items-center gap-1 text-sm">
                                                 <Clock className="h-3 w-3" />
-                                                <span className="font-medium">{followup.scheduled_time}</span>
+                                                <span className="font-medium">{followup.time}</span>
                                             </div>
                                             <div className="flex gap-1">
                                                 <Button
