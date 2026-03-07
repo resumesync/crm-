@@ -156,7 +156,7 @@ export default function Followups() {
 
     const filteredFollowups = (list: Followup[]) => {
         return list.filter(f => {
-            const matchesSearch = f.lead_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            const matchesSearch = f.leadName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (f.phone || '').includes(searchQuery) ||
                 (f.service || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesType = filterType === 'all' || f.type === filterType;
@@ -182,7 +182,7 @@ export default function Followups() {
                 <div className="space-y-1">
                     <div className="flex items-center gap-2">
                         <p className={`font-semibold ${followup.status === 'completed' ? 'line-through' : ''}`}>
-                            {followup.lead_name}
+                            {followup.leadName}
                         </p>
                         <Badge variant="secondary" className="text-xs">{followup.service || 'N/A'}</Badge>
                     </div>
@@ -191,11 +191,11 @@ export default function Followups() {
                     <div className="flex items-center gap-3 pt-1">
                         <Badge variant="outline" className="text-xs">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(followup.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            {new Date(followup.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </Badge>
                         <Badge variant="outline" className="text-xs">
                             <Clock className="h-3 w-3 mr-1" />
-                            {followup.scheduled_time}
+                            {followup.time}
                         </Badge>
                         <Badge variant={followup.type === 'Call' ? 'default' : followup.type === 'WhatsApp' ? 'secondary' : 'outline'} className="text-xs">
                             {followup.type}

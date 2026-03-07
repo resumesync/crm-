@@ -3,83 +3,65 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Star, ExternalLink, Send, Settings, Loader2 } from 'lucide-react';
+import { Star, ExternalLink, Send, Settings, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { useLeads } from '@/hooks/useLeads';
 import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
-
-interface ConvertedLead {
-  id: number;
-  lead_id: string;
-  full_name: string | null;
-  phone_number: string | null;
-  clinic_name: string | null;
-  updated_at: string;
-}
 
 export default function Reviews() {
   const [gmbLink, setGmbLink] = useState('https://g.page/r/your-clinic-review');
-  const [leads, setLeads] = useState<ConvertedLead[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchClinicData = async () => {
-      try {
-        const clinics = await apiFetch('/api/clinics');
-        if (clinics && clinics.length > 0) {
-          if (clinics[0].gmb_review_link) {
-            setGmbLink(clinics[0].gmb_review_link);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load clinic data:', error);
-      }
-    };
+  // Fetch converted leads from API
+  const { data, isLoading, isError, refetch } = useLeads({
+    status: 'Converted',
+    page: 1,
+    per_page: 20
+  });
 
-    const fetchConverted = async () => {
-      try {
-        const data = await apiFetch('/api/leads?status=converted&per_page=50');
-        setLeads(data.leads || []);
-      } catch (error) {
-        console.error('Failed to load converted leads:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const convertedLeads = data?.leads || [];
 
-    fetchClinicData();
-    fetchConverted();
-  }, []);
+  const sendReviewRequest = (lead: typeof convertedLeads[0]) => {
+    const name = lead.full_name?.split(' ')[0] || 'there';
+    const clinicName = lead.clinic_name || 'our clinic';
+    const phone = lead.phone_number?.replace(/[^0-9]/g, '') || '';
 
-  const handleSaveGmbLink = async () => {
-    try {
-      const clinics = await apiFetch('/api/clinics');
-      if (clinics && clinics.length > 0) {
-        await apiFetch(`/api/clinics/${clinics[0].id}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            ...clinics[0],
-            gmb_review_link: gmbLink
-          })
-        });
-        toast.success('GMB review link saved successfully');
-      } else {
-        toast.error('No clinic found to update');
-      }
-    } catch (error) {
-      toast.error('Failed to save GMB link');
+    if (!phone) {
+      toast.error('No phone number available');
+      return;
     }
-  };
 
-  const sendReviewRequest = (lead: ConvertedLead) => {
-    const name = (lead.full_name || 'there').split(' ')[0];
-    const clinic = lead.clinic_name || 'our clinic';
-    const message = `Hi ${name}, thank you for visiting ${clinic}! 🙏\n\nYour feedback helps us serve patients better. Please share your experience here:\n${gmbLink}`;
-    const phone = (lead.phone_number || '').replace(/[^0-9]/g, '');
+    const message = `Hi ${name}, thank you for visiting ${clinicName}! 🙏\n\nYour feedback helps us serve patients better. Please share your experience here:\n${gmbLink}`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
     toast.success('Review request sent!');
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <Header title="Reviews" subtitle="Collect Google My Business reviews from converted leads" />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Layout>
+        <Header title="Reviews" subtitle="Collect Google My Business reviews from converted leads" />
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <AlertCircle className="h-12 w-12 text-destructive" />
+          <p className="text-muted-foreground">Failed to load converted leads</p>
+          <Button onClick={() => refetch()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -104,10 +86,6 @@ export default function Reviews() {
                   placeholder="https://g.page/r/your-clinic-review"
                   className="max-w-md"
                 />
-                <Button variant="default" onClick={handleSaveGmbLink}>
-                  <Settings className="h-4 w-4" />
-                  Save Link
-                </Button>
                 <Button variant="outline" onClick={() => window.open(gmbLink, '_blank')}>
                   <ExternalLink className="h-4 w-4" />
                   Test Link
@@ -134,18 +112,16 @@ export default function Reviews() {
         {/* Converted Leads - Ready for Review */}
         <div>
           <h3 className="mb-4 text-lg font-semibold text-foreground">Converted Leads - Ready for Review</h3>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : leads.length === 0 ? (
-            <Card className="flex flex-col items-center justify-center p-12 text-center">
-              <Star className="h-12 w-12 text-muted-foreground/30" />
-              <p className="mt-3 text-muted-foreground">No converted leads yet. Convert leads first to send review requests.</p>
+
+          {convertedLeads.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Star className="h-12 w-12 mx-auto text-muted-foreground" />
+              <p className="mt-4 text-lg text-muted-foreground">No converted leads yet</p>
+              <p className="text-sm text-muted-foreground">When leads are converted, they'll appear here for review requests</p>
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {leads.map((lead, index) => (
+              {convertedLeads.map((lead, index) => (
                 <Card
                   key={lead.id}
                   className="animate-fade-in p-4 transition-all hover:shadow-medium"
@@ -156,13 +132,13 @@ export default function Reviews() {
                       <Star className="h-5 w-5 text-status-converted" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-foreground">{lead.full_name || 'Anonymous'}</p>
+                      <p className="font-medium text-foreground">{lead.full_name || 'Unknown'}</p>
                       <p className="text-xs text-muted-foreground">{lead.clinic_name || '-'}</p>
                     </div>
                   </div>
 
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Converted on {format(new Date(lead.updated_at), 'PP')}
+                    Converted on {lead.updated_at ? format(new Date(lead.updated_at), 'PP') : '-'}
                   </p>
 
                   <Button
@@ -170,6 +146,7 @@ export default function Reviews() {
                     size="sm"
                     className="mt-4 w-full"
                     onClick={() => sendReviewRequest(lead)}
+                    disabled={!lead.phone_number}
                   >
                     <Send className="h-4 w-4" />
                     Send Review Request

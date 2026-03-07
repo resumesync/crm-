@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
+import { useTemplates, useCreateTemplate, useUpdateTemplate, useDeleteTemplate } from '@/hooks/useTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
-import { MessageCircle, Edit2, Trash2, Plus, Send, Copy, Loader2 } from 'lucide-react';
+import { MessageCircle, Edit2, Trash2, Plus, Send, Copy, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -15,37 +16,20 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { apiFetch } from '@/lib/api';
-
-interface Template {
-  id: number;
-  name: string;
-  content: string;
-  template_type: string;
-}
+import type { ApiWhatsAppTemplate } from '@/types/api';
 
 export default function Messages() {
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editDialog, setEditDialog] = useState<{ open: boolean; template?: Template }>({ open: false });
+  const { data: templates, isLoading, isError, refetch } = useTemplates({ template_type: 'quick' });
+  const createTemplate = useCreateTemplate();
+  const updateTemplate = useUpdateTemplate();
+  const deleteTemplate = useDeleteTemplate();
+
+  const [editDialog, setEditDialog] = useState<{ open: boolean; template?: ApiWhatsAppTemplate }>({
+    open: false,
+  });
   const [newMessage, setNewMessage] = useState({ title: '', content: '' });
 
-  const fetchTemplates = async () => {
-    try {
-      const data = await apiFetch('/api/whatsapp/templates');
-      setTemplates(data || []);
-    } catch (error) {
-      console.error('Failed to load templates:', error);
-      // Fallback to empty
-      setTemplates([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
+  const messages = templates || [];
 
   const copyToClipboard = (content: string) => {
     navigator.clipboard.writeText(content);
@@ -60,52 +44,63 @@ export default function Messages() {
 
     try {
       if (editDialog.template) {
-        await apiFetch(`/api/whatsapp/templates/${editDialog.template.id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ name: newMessage.title, content: newMessage.content }),
+        await updateTemplate.mutateAsync({
+          id: editDialog.template.id,
+          data: { name: newMessage.title, content: newMessage.content }
         });
-        toast.success('Template updated');
+        toast.success('Message updated');
       } else {
-        await apiFetch('/api/whatsapp/templates', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: newMessage.title,
-            content: newMessage.content,
-            template_type: 'quick_message',
-          }),
+        await createTemplate.mutateAsync({
+          name: newMessage.title,
+          content: newMessage.content,
+          template_type: 'quick'
         });
-        toast.success('Template created');
+        toast.success('Message created');
       }
-      fetchTemplates();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save template');
-    }
 
-    setEditDialog({ open: false });
-    setNewMessage({ title: '', content: '' });
+      setEditDialog({ open: false });
+      setNewMessage({ title: '', content: '' });
+    } catch (error) {
+      toast.error('Failed to save message');
+    }
   };
 
-  const handleEdit = (template: Template) => {
+  const handleEdit = (template: ApiWhatsAppTemplate) => {
     setNewMessage({ title: template.name, content: template.content });
     setEditDialog({ open: true, template });
   };
 
   const handleDelete = async (id: number) => {
     try {
-      await apiFetch(`/api/whatsapp/templates/${id}`, { method: 'DELETE' });
-      toast.success('Template deleted');
-      fetchTemplates();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete template');
+      await deleteTemplate.mutateAsync(id);
+      toast.success('Message deleted');
+    } catch (error) {
+      toast.error('Failed to delete message');
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Layout>
         <Header title="Quick Messages" subtitle="Manage your WhatsApp message templates" />
-        <div className="flex items-center justify-center p-20">
+        <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Layout>
+        <Header title="Quick Messages" subtitle="Manage your WhatsApp message templates" />
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <AlertCircle className="h-12 w-12 text-destructive" />
+          <p className="text-muted-foreground">Failed to load templates</p>
+          <Button onClick={() => refetch()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
         </div>
       </Layout>
     );
@@ -132,7 +127,10 @@ export default function Messages() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {['{{name}}', '{{service}}', '{{clinic_name}}', '{{gmb_link}}'].map((variable) => (
-              <span key={variable} className="rounded-md bg-card px-2 py-1 font-mono text-xs text-primary">
+              <span
+                key={variable}
+                className="rounded-md bg-card px-2 py-1 font-mono text-xs text-primary"
+              >
                 {variable}
               </span>
             ))}
@@ -140,16 +138,21 @@ export default function Messages() {
         </Card>
 
         {/* Messages Grid */}
-        {templates.length === 0 ? (
-          <Card className="flex flex-col items-center justify-center p-12 text-center">
-            <MessageCircle className="h-12 w-12 text-muted-foreground/30" />
-            <p className="mt-3 text-muted-foreground">No templates yet. Create your first one!</p>
-          </Card>
+        {messages.length === 0 ? (
+          <div className="text-center py-12">
+            <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground" />
+            <p className="mt-4 text-lg text-muted-foreground">No templates yet</p>
+            <p className="text-sm text-muted-foreground">Create your first quick message template</p>
+            <Button className="mt-4" onClick={() => { setNewMessage({ title: '', content: '' }); setEditDialog({ open: true }); }}>
+              <Plus className="h-4 w-4" />
+              Create Template
+            </Button>
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template, index) => (
+            {messages.map((message, index) => (
               <Card
-                key={template.id}
+                key={message.id}
                 className="animate-fade-in p-4 transition-all duration-200 hover:shadow-medium"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
@@ -158,23 +161,36 @@ export default function Messages() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-whatsapp/10">
                       <MessageCircle className="h-4 w-4 text-whatsapp" />
                     </div>
-                    <h3 className="font-semibold text-foreground">{template.name}</h3>
+                    <h3 className="font-semibold text-foreground">{message.name}</h3>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => copyToClipboard(template.content)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => copyToClipboard(message.content)}
+                    >
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(template)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleEdit(message)}
+                    >
                       <Edit2 className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(template.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(message.id)}
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
 
                 <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground line-clamp-4">
-                  {template.content}
+                  {message.content}
                 </p>
 
                 <Button
@@ -182,7 +198,7 @@ export default function Messages() {
                   size="sm"
                   className="mt-4 w-full"
                   onClick={() => {
-                    window.open(`https://wa.me/?text=${encodeURIComponent(template.content)}`, '_blank');
+                    window.open(`https://wa.me/?text=${encodeURIComponent(message.content)}`, '_blank');
                   }}
                 >
                   <Send className="h-4 w-4" />
@@ -222,8 +238,15 @@ export default function Messages() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog({ open: false })}>Cancel</Button>
-            <Button onClick={handleSave}>{editDialog.template ? 'Update' : 'Create'}</Button>
+            <Button variant="outline" onClick={() => setEditDialog({ open: false })}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={createTemplate.isPending || updateTemplate.isPending}>
+              {(createTemplate.isPending || updateTemplate.isPending) ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              {editDialog.template ? 'Update' : 'Create'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

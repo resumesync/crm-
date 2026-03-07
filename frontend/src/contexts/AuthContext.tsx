@@ -4,9 +4,10 @@ import { toast } from '@/hooks/use-toast';
 import { authService } from '@/services/authService';
 import { clearAuthToken, setAuthToken } from '@/lib/api';
 import type { ApiUser } from '@/types/api';
+import type { User } from '@/types/crm';
 
 interface AuthContextType {
-    user: ApiUser | null;
+    user: User | null;
     loading: boolean;
     isAuthenticated: boolean;
     loginWithFacebook: () => Promise<void>;
@@ -23,7 +24,7 @@ const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_A
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<ApiUser | null>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [fbLoaded, setFbLoaded] = useState(false);
 
@@ -106,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: data.id,
                 email: data.email || `${data.id}@facebook.com`,
                 name: data.name,
-                picture: data.picture?.data?.url,
+                avatar: data.picture?.data?.url,
                 role: 'admin',
                 provider: 'facebook'
             };
