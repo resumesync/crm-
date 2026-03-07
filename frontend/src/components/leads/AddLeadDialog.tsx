@@ -20,6 +20,12 @@ import {
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 
+// Placeholder team members until API endpoint is added
+const teamMembers = [
+  { id: '1', name: 'Admin', role: 'admin' },
+  { id: '2', name: 'Manager', role: 'manager' },
+];
+
 interface AddLeadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

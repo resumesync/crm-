@@ -1,22 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
-
-// Facebook SDK types
-declare global {
-    interface Window {
-        FB: any;
-        fbAsyncInit: () => void;
-    }
-}
-
-interface User {
-    id: string;
-    email: string;
-    name: string;
-    picture?: string;
-    role: 'admin' | 'agent';
-    provider: 'facebook' | 'email';
-}
+import { authService } from '@/services/authService';
+import { clearAuthToken, setAuthToken } from '@/lib/api';
+import type { ApiUser } from '@/types/api';
+import type { User } from '@/types/crm';
 
 interface AuthContextType {
     user: User | null;
@@ -24,7 +12,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     loginWithFacebook: () => Promise<void>;
     loginWithEmail: (email: string, password: string) => Promise<void>;
-    registerWithEmail: (userData: any) => Promise<void>;
+    register: (userData: any) => Promise<void>;
     logout: () => void;
 }
 
@@ -119,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: data.id,
                 email: data.email || `${data.id}@facebook.com`,
                 name: data.name,
-                picture: data.picture?.data?.url,
+                avatar: data.picture?.data?.url,
                 role: 'admin',
                 provider: 'facebook'
             };
@@ -206,9 +194,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 description: `Successfully logged in as ${loggedInUser.name}`,
             });
         } catch (error: any) {
+            const errorMessage = error?.data?.detail || error.message || "Invalid credentials";
             toast({
                 title: "Login failed",
-                description: error.message,
+                description: errorMessage,
                 variant: "destructive",
             });
             throw error;
@@ -217,10 +206,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const registerWithEmail = async (userData: any) => {
+    const register = async (userData: any) => {
         setLoading(true);
         try {
-            // Register the user
             const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: {
@@ -235,13 +223,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 throw new Error(data.detail || 'Registration failed');
             }
 
-            // Immediately login the new user
+            toast({
+                title: "Registration successful!",
+                description: "Please login with your credentials.",
+            });
+
+            // Automatically login after registration
             await loginWithEmail(userData.username, userData.password);
 
         } catch (error: any) {
             toast({
                 title: "Registration failed",
-                description: error.message,
+                description: error.message || "Registration failed",
                 variant: "destructive",
             });
             throw error;
@@ -258,21 +251,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        localStorage.removeItem('fb_access_token');
 
         toast({
             title: "Logged out",
             description: "You have been successfully logged out.",
         });
+
+        // Redirect to login page
+        window.location.href = '/login';
     };
 
     const value = {
         user,
         loading,
         isAuthenticated: !!user,
-        loginWithFacebook,
         loginWithEmail,
-        registerWithEmail,
+        loginWithFacebook,
+        register,
         logout,
     };
 

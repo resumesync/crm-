@@ -1,8 +1,4 @@
-import { Lead, STATUS_CONFIG, SERVICE_CONFIG, Activity, CallRecord, MessageRecord, FollowUp, FollowUpPriority } from '@/types/crm';
-import { mockUsers, mockQuickMessages, getLeadActivities, getLeadCalls, getLeadMessages, getLeadFollowUps } from '@/data/mockData';
-import { apiFetch } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
+import { useState, useEffect } from 'react';
 import {
   X,
   Phone,
@@ -31,12 +27,16 @@ import {
   Globe,
   Briefcase,
   Languages,
-  UserCheck,
+  UserCheck
 } from 'lucide-react';
+import { Lead, STATUS_CONFIG, SERVICE_CONFIG, Activity, CallRecord, MessageRecord, FollowUp, FollowUpPriority } from '@/types/crm';
+import { mockUsers, mockQuickMessages, getLeadActivities, getLeadCalls, getLeadMessages, getLeadFollowUps } from '@/data/mockData';
+import { apiFetch } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useState, useEffect } from 'react';
 import {
   Select,
   SelectContent,
@@ -50,6 +50,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
+
+// Placeholder users until API endpoint is added
+const teamMembers = [
+  { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'admin' as const },
+  { id: '2', name: 'Manager User', email: 'manager@example.com', role: 'manager' as const },
+];
+
+// Placeholder quick messages until API endpoint is added
+const quickMessages = [
+  { id: '1', title: 'Follow-up', content: 'Hi {{name}}, just following up on your inquiry about {{service}}.' },
+  { id: '2', title: 'Appointment Reminder', content: 'Hi {{name}}, this is a reminder about your upcoming appointment at {{clinic_name}}.' },
+];
 
 interface LeadDetailPanelProps {
   lead: Lead;
@@ -84,7 +96,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpPriority, setFollowUpPriority] = useState<FollowUpPriority>('medium');
 
-  const assignedUser = mockUsers.find((u) => u.id === editedLead.assignedTo);
+  const assignedUser = teamMembers.find((u) => u.id === editedLead.assignedTo);
   const activities = getLeadActivities(lead.id);
   const calls = getLeadCalls(lead.id);
   const messages = getLeadMessages(lead.id);
@@ -740,7 +752,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockUsers.map((user) => (
+                    {teamMembers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.name}
                       </SelectItem>
@@ -772,7 +784,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
               {lead.notes.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {lead.notes.slice(0, 2).map((note) => {
-                    const author = mockUsers.find((u) => u.id === note.createdBy);
+                    const author = teamMembers.find((u) => u.id === note.createdBy);
                     return (
                       <div key={note.id} className="rounded-lg border border-border/50 bg-secondary/20 p-2">
                         <p className="text-xs text-foreground">{note.content}</p>
@@ -799,7 +811,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
                   <p className="py-8 text-center text-sm text-muted-foreground">No activities yet</p>
                 ) : (
                   activities.map((activity) => {
-                    const author = mockUsers.find((u) => u.id === activity.createdBy);
+                    const author = teamMembers.find((u) => u.id === activity.createdBy);
                     return (
                       <div key={activity.id} className="relative pl-10">
                         <div className="absolute left-2 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-muted-foreground">
@@ -843,7 +855,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
                 <p className="py-8 text-center text-sm text-muted-foreground">No calls recorded</p>
               ) : (
                 calls.map((call) => {
-                  const caller = mockUsers.find((u) => u.id === call.createdBy);
+                  const caller = teamMembers.find((u) => u.id === call.createdBy);
                   return (
                     <div key={call.id} className="rounded-lg border border-border/50 bg-secondary/20 p-3">
                       <div className="flex items-start gap-3">
@@ -902,7 +914,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
                 <p className="py-8 text-center text-sm text-muted-foreground">No messages yet</p>
               ) : (
                 messages.map((msg) => {
-                  const sender = mockUsers.find((u) => u.id === msg.createdBy);
+                  const sender = teamMembers.find((u) => u.id === msg.createdBy);
                   return (
                     <div key={msg.id} className={cn(
                       'rounded-lg border border-border/50 p-3',
@@ -961,7 +973,7 @@ export function LeadDetailPanel({ lead, onClose }: LeadDetailPanelProps) {
                 <p className="py-8 text-center text-sm text-muted-foreground">No follow-ups scheduled</p>
               ) : (
                 followUps.map((followUp) => {
-                  const creator = mockUsers.find((u) => u.id === followUp.createdBy);
+                  const creator = teamMembers.find((u) => u.id === followUp.createdBy);
                   const isOverdue = followUp.status === 'overdue';
                   const isPending = followUp.status === 'pending';
 

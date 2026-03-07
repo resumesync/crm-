@@ -193,12 +193,12 @@ export default function Birthdays() {
         {/* This Month's Birthdays */}
         <div>
           <h3 className="mb-4 text-lg font-semibold text-foreground">
-            All Birthdays in {format(today, 'MMMM')}
+            Upcoming Birthdays (Next 30 Days)
           </h3>
           {thisMonthBirthdays.length === 0 ? (
             <Card className="flex flex-col items-center justify-center p-8 text-center">
               <Gift className="h-12 w-12 text-muted-foreground/50" />
-              <p className="mt-3 text-muted-foreground">No birthdays this month</p>
+              <p className="mt-3 text-muted-foreground">No upcoming birthdays</p>
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

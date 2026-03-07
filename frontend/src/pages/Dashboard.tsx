@@ -3,14 +3,48 @@ import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Megaphone, Star, TrendingUp, Calendar, ArrowUpRight, Clock, Phone, CheckCircle2, Plus, X, Globe, Facebook, Instagram } from 'lucide-react';
+import {
+    Users,
+    MessageCircle,
+    Megaphone,
+    Star,
+    TrendingUp,
+    Calendar,
+    ArrowUpRight,
+    Clock,
+    Phone,
+    CheckCircle2,
+    Plus,
+    X,
+    Globe,
+    Facebook,
+    Instagram,
+    Loader2
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useCampaigns } from '@/hooks/useCampaigns';
+import { useDashboardStats, useDashboardRecentLeads } from '@/hooks/useDashboard';
+import { useFollowups, useCreateFollowup, useCompleteFollowup, useDeleteFollowup } from '@/hooks/useFollowups';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
@@ -34,31 +68,17 @@ interface DashboardStats {
 
 export default function Dashboard() {
     const { user } = useAuth();
-    const [realStats, setRealStats] = useState<DashboardStats | null>(null);
-    const [isLoadingStats, setIsLoadingStats] = useState(true);
     const [followups, setFollowups] = useState<any[]>([]);
     const [isAddFollowupOpen, setIsAddFollowupOpen] = useState(false);
     const [newFollowup, setNewFollowup] = useState({
         leadName: '',
         phone: '',
-        date: '',
         time: '',
         type: 'Call',
-        notes: ''
+        notes: '',
     });
 
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const data = await apiFetch('/api/dashboard/stats');
-                setRealStats(data);
-            } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
-            } finally {
-                setIsLoadingStats(false);
-            }
-        };
-
         const fetchFollowups = async () => {
             try {
                 const today = new Date().toISOString().split('T')[0];
@@ -83,7 +103,6 @@ export default function Dashboard() {
             }
         };
 
-        fetchStats();
         fetchFollowups();
     }, []);
 
@@ -112,7 +131,7 @@ export default function Dashboard() {
 
     const addFollowup = async () => {
         if (!newFollowup.leadName || !newFollowup.phone || !newFollowup.time) {
-            toast.error('Please fill in required fields');
+            toast.error('Please fill in all required fields');
             return;
         }
 
@@ -141,7 +160,7 @@ export default function Dashboard() {
             };
 
             setFollowups(prev => [...prev, followup]);
-            setNewFollowup({ leadName: '', phone: '', date: '', time: '', type: 'Call', notes: '' });
+            setNewFollowup({ leadName: '', phone: '', time: '', type: 'Call', notes: '' });
             setIsAddFollowupOpen(false);
             toast.success('Follow-up scheduled successfully!');
         } catch (error) {
@@ -149,8 +168,68 @@ export default function Dashboard() {
         }
     };
 
+    // Extract data from hooks
+    const { data: statsData, isLoading: statsLoading } = useDashboardStats();
+    const { data: recentLeadsData, isLoading: recentLeadsLoading } = useDashboardRecentLeads();
+    const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns();
+
     const pendingFollowups = followups.filter(f => f.status === 'pending');
     const completedFollowups = followups.filter(f => f.status === 'completed');
+
+    const totalLeads = statsData?.total_leads || 0;
+    const leadsChangePercent = statsData?.leads_change_percent;
+    const recentLeads = recentLeadsData?.leads || [];
+    const activeCampaigns = campaignsData?.campaigns?.filter(c =>
+        c.status === 'in_progress' || c.status === 'scheduled'
+    ).length || 0;
+
+    const isLoading = statsLoading || campaignsLoading;
+
+    // Format change percentage for display
+    const formatChange = (percent: number | null | undefined): string => {
+        if (percent === null || percent === undefined) return '-';
+        const sign = percent >= 0 ? '+' : '';
+        return `${sign}${percent}%`;
+    };
+
+    const stats = [
+        {
+            name: 'Total Leads',
+            value: isLoading ? '-' : totalLeads.toLocaleString(),
+            change: formatChange(leadsChangePercent),
+            changePositive: leadsChangePercent === null ? true : leadsChangePercent >= 0,
+            icon: Users,
+            color: 'text-blue-500',
+            bg: 'bg-blue-500/10'
+        },
+        {
+            name: 'Leads This Month',
+            value: isLoading ? '-' : (statsData?.leads_this_month || 0).toLocaleString(),
+            change: formatChange(leadsChangePercent),
+            changePositive: leadsChangePercent === null ? true : leadsChangePercent >= 0,
+            icon: MessageCircle,
+            color: 'text-green-500',
+            bg: 'bg-green-500/10'
+        },
+        {
+            name: 'Active Campaigns',
+            value: isLoading ? '-' : String(activeCampaigns),
+            change: '-',
+            changePositive: true,
+            icon: Megaphone,
+            color: 'text-purple-500',
+            bg: 'bg-purple-500/10'
+        },
+        {
+            name: 'Leads Today',
+            value: isLoading ? '-' : (statsData?.leads_today || 0).toLocaleString(),
+            change: '-',
+            changePositive: true,
+            icon: Star,
+            color: 'text-yellow-500',
+            bg: 'bg-yellow-500/10'
+        },
+    ];
 
     return (
         <Layout>
@@ -166,7 +245,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.total_leads || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.total_leads || 0}</p>
                             <p className="text-sm text-muted-foreground">Total Leads</p>
                         </div>
                     </Card>
@@ -178,7 +257,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.today_leads || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.leads_today || 0}</p>
                             <p className="text-sm text-muted-foreground">Today's Leads</p>
                         </div>
                     </Card>
@@ -190,7 +269,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.source_distribution?.['google'] || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.source_distribution?.['google'] || 0}</p>
                             <p className="text-sm text-muted-foreground">Google Ads/Sheets</p>
                         </div>
                     </Card>
@@ -202,7 +281,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="text-2xl font-bold">{realStats?.source_distribution?.['meta'] || 0}</p>
+                            <p className="text-2xl font-bold">{statsData?.source_distribution?.['meta'] || 0}</p>
                             <p className="text-sm text-muted-foreground">Meta (FB/IG)</p>
                         </div>
                     </Card>
@@ -266,31 +345,39 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                {/* Two Column Layout for Leads and Follow-ups */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Recent Leads */}
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold">Recent Leads</h3>
-                            <Link to="/leads">
-                                <Button variant="ghost" size="sm">View All</Button>
-                            </Link>
+                {/* Recent Leads */}
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">Recent Leads</h3>
+                        <Link to="/leads">
+                            <Button variant="ghost" size="sm">View All</Button>
+                        </Link>
+                    </div>
+                    {recentLeadsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
+                    ) : recentLeads.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <p>No leads yet</p>
+                            <p className="text-sm mt-1">Leads will appear here when captured from Meta or added manually</p>
+                        </div>
+                    ) : (
                         <div className="space-y-3">
-                            {realStats?.recent_leads.length === 0 ? (
+                            {recentLeads.length === 0 ? (
                                 <p className="text-center py-4 text-muted-foreground">No leads found</p>
                             ) : (
-                                realStats?.recent_leads.map((lead, index) => (
+                                recentLeads.map((lead, index) => (
                                     <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                                                 <span className="text-sm font-medium text-primary">
-                                                    {lead.name?.split(' ').map(n => n[0]).join('') || 'L'}
+                                                    {lead.full_name?.split(' ').map(n => n[0]).join('') || 'L'}
                                                 </span>
                                             </div>
                                             <div>
-                                                <p className="font-medium">{lead.name || 'Anonymous'}</p>
-                                                <p className="text-sm text-muted-foreground font-mono">{lead.phone}</p>
+                                                <p className="font-medium">{lead.full_name || 'Anonymous'}</p>
+                                                <p className="text-sm text-muted-foreground font-mono">{lead.phone_number}</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -301,118 +388,118 @@ export default function Dashboard() {
                                                 {lead.status}
                                             </span>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {lead.source === 'google' ? 'Google' : 'Meta'}
+                                                {lead.lead_source === 'google' ? 'Google' : 'Meta'}
                                             </p>
                                         </div>
                                     </div>
                                 ))
                             )}
                         </div>
-                    </Card>
+                    )}
+                </Card>
 
-                    {/* Follow-ups Section */}
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-primary" />
-                                <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
-                                <Badge variant="secondary" className="ml-2">{pendingFollowups.length} pending</Badge>
-                            </div>
-                            <Button size="sm" onClick={() => setIsAddFollowupOpen(true)}>
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add
-                            </Button>
+                {/* Follow-ups Section */}
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">Today's Follow-ups</h3>
+                            <Badge variant="secondary" className="ml-2">{pendingFollowups.length} pending</Badge>
                         </div>
+                        <Button size="sm" onClick={() => setIsAddFollowupOpen(true)}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                        </Button>
+                    </div>
 
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                            {pendingFollowups.length === 0 && completedFollowups.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                    <p>No follow-ups scheduled for today</p>
-                                    <Button variant="outline" className="mt-4" onClick={() => setIsAddFollowupOpen(true)}>
-                                        Schedule Follow-up
-                                    </Button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Pending Follow-ups */}
-                                    {pendingFollowups.map((followup) => (
-                                        <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
-                                            <div className="flex items-start gap-3">
-                                                <div className={`p-2 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
-                                                    followup.type === 'WhatsApp' ? 'bg-green-500/10' :
-                                                        'bg-purple-500/10'
-                                                    }`}>
-                                                    {followup.type === 'Call' ? (
-                                                        <Phone className={`h-4 w-4 text-blue-500`} />
-                                                    ) : followup.type === 'WhatsApp' ? (
-                                                        <MessageCircle className={`h-4 w-4 text-green-500`} />
-                                                    ) : (
-                                                        <Users className={`h-4 w-4 text-purple-500`} />
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium">{followup.leadName}</p>
-                                                    <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">{followup.notes}</p>
-                                                </div>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {pendingFollowups.length === 0 && completedFollowups.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                <p>No follow-ups scheduled for today</p>
+                                <Button variant="outline" className="mt-4" onClick={() => setIsAddFollowupOpen(true)}>
+                                    Schedule Follow-up
+                                </Button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Pending Follow-ups */}
+                                {pendingFollowups.map((followup) => (
+                                    <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                                        <div className="flex items-start gap-3">
+                                            <div className={`p-2 rounded-lg ${followup.type === 'Call' ? 'bg-blue-500/10' :
+                                                followup.type === 'WhatsApp' ? 'bg-green-500/10' :
+                                                    'bg-purple-500/10'
+                                                }`}>
+                                                {followup.type === 'Call' ? (
+                                                    <Phone className="h-4 w-4 text-blue-500" />
+                                                ) : followup.type === 'WhatsApp' ? (
+                                                    <MessageCircle className="h-4 w-4 text-green-500" />
+                                                ) : (
+                                                    <Users className="h-4 w-4 text-purple-500" />
+                                                )}
                                             </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <div className="flex items-center gap-1 text-sm">
-                                                    <Clock className="h-3 w-3" />
-                                                    <span className="font-medium">{followup.time}</span>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                        onClick={() => markAsCompleted(followup.id)}
-                                                    >
-                                                        <CheckCircle2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                        onClick={() => removeFollowup(followup.id)}
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                            <div>
+                                                <p className="font-medium">{followup.leadName}</p>
+                                                <p className="text-sm text-muted-foreground">{followup.phone}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">{followup.notes}</p>
                                             </div>
                                         </div>
-                                    ))}
-
-                                    {/* Completed Follow-ups */}
-                                    {completedFollowups.length > 0 && (
-                                        <>
-                                            <div className="flex items-center gap-2 pt-2">
-                                                <div className="flex-1 h-px bg-border"></div>
-                                                <span className="text-xs text-muted-foreground">Completed</span>
-                                                <div className="flex-1 h-px bg-border"></div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <div className="flex items-center gap-1 text-sm">
+                                                <Clock className="h-3 w-3" />
+                                                <span className="font-medium">{followup.time}</span>
                                             </div>
-                                            {completedFollowups.map((followup) => (
-                                                <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-muted/30 opacity-60">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="p-2 rounded-lg bg-green-500/10">
-                                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium line-through">{followup.leadName}</p>
-                                                            <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                                                        </div>
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                    onClick={() => markAsCompleted(followup.id)}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => removeFollowup(followup.id)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Completed Follow-ups */}
+                                {completedFollowups.length > 0 && (
+                                    <>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <div className="flex-1 h-px bg-border"></div>
+                                            <span className="text-xs text-muted-foreground">Completed</span>
+                                            <div className="flex-1 h-px bg-border"></div>
+                                        </div>
+                                        {completedFollowups.map((followup) => (
+                                            <div key={followup.id} className="flex items-start justify-between p-3 rounded-lg border border-border bg-muted/30 opacity-60">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="p-2 rounded-lg bg-green-500/10">
+                                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
                                                     </div>
-                                                    <span className="text-sm text-muted-foreground">{followup.time}</span>
+                                                    <div>
+                                                        <p className="font-medium line-through">{followup.lead_name}</p>
+                                                        <p className="text-sm text-muted-foreground">{followup.phone || '-'}</p>
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </Card>
-                </div>
+                                                <span className="text-sm text-muted-foreground">{followup.scheduled_time}</span>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </Card>
             </div>
 
             {/* Add Follow-up Dialog */}
@@ -486,7 +573,7 @@ export default function Dashboard() {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>
-        </Layout>
+            </Dialog >
+        </Layout >
     );
 }

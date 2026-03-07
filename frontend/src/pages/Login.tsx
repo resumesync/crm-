@@ -60,10 +60,10 @@ export default function Login() {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">Email or Username</Label>
                                 <Input
                                     id="email"
-                                    type="email"
+                                    type="text"
                                     placeholder="your@email.com"
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}

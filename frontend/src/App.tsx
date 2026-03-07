@@ -21,7 +21,15 @@ import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      retryDelay: 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 

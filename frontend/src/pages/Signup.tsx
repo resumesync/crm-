@@ -2,13 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart3 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Signup() {
-    const { registerWithEmail } = useAuth();
+    const { register } = useAuth();
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -26,7 +26,7 @@ export default function Signup() {
             // Generate a username from the email if needed 
             const username = formData.email.split('@')[0] + Math.floor(Math.random() * 10000);
 
-            await registerWithEmail({
+            await register({
                 email: formData.email,
                 username: username,
                 password: formData.password,
@@ -122,10 +122,10 @@ export default function Signup() {
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                     required
-                                    minLength={8}
+                                    minLength={6}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Must be at least 8 characters
+                                    Must be at least 6 characters
                                 </p>
                             </div>
 

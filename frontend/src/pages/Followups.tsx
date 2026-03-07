@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Phone, MessageCircle, Users, CheckCircle2, Plus, X, Search, Filter } from 'lucide-react';
+import { Calendar, Clock, Phone, MessageCircle, Users, CheckCircle2, Plus, X, Search, Filter, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -157,8 +157,8 @@ export default function Followups() {
     const filteredFollowups = (list: Followup[]) => {
         return list.filter(f => {
             const matchesSearch = f.leadName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                f.phone.includes(searchQuery) ||
-                f.service.toLowerCase().includes(searchQuery.toLowerCase());
+                (f.phone || '').includes(searchQuery) ||
+                (f.service || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesType = filterType === 'all' || f.type === filterType;
             return matchesSearch && matchesType;
         });
@@ -184,10 +184,10 @@ export default function Followups() {
                         <p className={`font-semibold ${followup.status === 'completed' ? 'line-through' : ''}`}>
                             {followup.leadName}
                         </p>
-                        <Badge variant="secondary" className="text-xs">{followup.service}</Badge>
+                        <Badge variant="secondary" className="text-xs">{followup.service || 'N/A'}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{followup.phone}</p>
-                    <p className="text-sm text-muted-foreground">{followup.notes}</p>
+                    <p className="text-sm text-muted-foreground">{followup.phone || '-'}</p>
+                    <p className="text-sm text-muted-foreground">{followup.notes || ''}</p>
                     <div className="flex items-center gap-3 pt-1">
                         <Badge variant="outline" className="text-xs">
                             <Calendar className="h-3 w-3 mr-1" />
